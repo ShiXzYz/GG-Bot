@@ -1,1 +1,7 @@
-a
+GUILD_ID = 626258630697549854
+STATUS_CHANNEL_ID = 1465957130082189427
+AUTO_ROLE_ID = 626261834210607136
+
+SERVERS = [
+    {"name": "Stoneblock4", "address": "stone.ggverse.xyz", "port": 25565},
+]
