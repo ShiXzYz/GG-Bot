@@ -1,5 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+
+# Virtual environment
+venv/
+ENV/
+env/
+
+# Environment variables
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Docker
+*.log
+*.pid
+
+# Byte-compiled / cache
+*.egg-info/
+*.eggs/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# MacOS
+.DS_Store
+
+# Other
+*.bak
+*.tmp
+

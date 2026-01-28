@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  mc-bot:
+    build: ./          # path to your bot folder
+    container_name: gg-bot
+    restart: always           # auto restart
+    network_mode: "host"      # host networking for direct access to Minecraft servers
+    volumes:
+      - ./:/app         # optional: live code edits without rebuilding
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}   # optional if using .env file
