@@ -4,4 +4,6 @@ AUTO_ROLE_ID = 626261834210607136
 
 SERVERS = [
     {"name": "Stoneblock4", "address": "stone.ggverse.xyz", "port": 25565},
+    {"name": "Vanilla1", "address": "gee.ggverse.xyz", "port": 25565},
+    {"name": "Vanilla2", "address": "gangnam.ggverse.xyz", "port": 25565},
 ]

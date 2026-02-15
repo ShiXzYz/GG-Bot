@@ -1,8 +1,8 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
+from discord import app_commands
 from mcstatus import JavaServer
-from config import SERVERS, STATUS_CHANNEL_ID
-from discord import NotFound
+from config import SERVERS
 from datetime import datetime
 
 def progress_bar(current, maximum, length=12):
@@ -15,8 +15,6 @@ def progress_bar(current, maximum, length=12):
 class Status(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.message_id = None
-        self.update_status.start()
 
     def build_embed(self) -> discord.Embed:
         all_online = True
@@ -76,31 +74,20 @@ class Status(commands.Cog):
             embed.color = 0x2ecc71 # Emerald Green
 
         embed.set_author(name="NETWORK MONITOR v2.4", icon_url=self.bot.user.display_avatar.url)
-        embed.set_footer(text="LIVE TELEMETRY • Next refresh")
+        embed.set_footer(text="LIVE TELEMETRY")
         
         return embed
 
-    @tasks.loop(minutes=1)
-    async def update_status(self):
-        channel = self.bot.get_channel(STATUS_CHANNEL_ID)
-        if not channel: return
+    @app_commands.command(name="servers", description="Show server status dashboard")
+    async def servers(self, interaction: discord.Interaction):
+        """Slash command to show current server dashboard.
 
+        This replaces the previous automatic posting behavior and will render
+        the same embed on demand when a user runs `/servers`.
+        """
+        await interaction.response.defer()
         embed = self.build_embed()
-
-        try:
-            if self.message_id:
-                msg = await channel.fetch_message(self.message_id)
-                await msg.edit(embed=embed)
-            else:
-                msg = await channel.send(embed=embed)
-                self.message_id = msg.id
-        except NotFound:
-            msg = await channel.send(embed=embed)
-            self.message_id = msg.id
-
-    @update_status.before_loop
-    async def before_update(self):
-        await self.bot.wait_until_ready()
+        await interaction.followup.send(embed=embed)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Status(bot))
