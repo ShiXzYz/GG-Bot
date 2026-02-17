@@ -1,3 +1,6 @@
+vc_lb_meta.json
+vc_points.json
+
 # Python
 __pycache__/
 *.py[cod]
