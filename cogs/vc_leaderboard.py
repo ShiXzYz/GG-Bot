@@ -1,11 +1,14 @@
 import json
 from pathlib import Path
+from io import BytesIO
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
+from PIL import Image
 
 STORE_PATH = Path(__file__).resolve().parent.parent / "vc_points.json"
 META_PATH = Path(__file__).resolve().parent.parent / "vc_lb_meta.json"
+IMAGE_SOURCE = Path(__file__).resolve().parent.parent / "vc-embed.jpg"
 
 # -------------------- STORAGE --------------------
 
@@ -97,7 +100,11 @@ class VCLeaderboard(commands.Cog):
 
             try:
                 message = await channel.fetch_message(meta["message_id"])
-                embed = self.build_embed(guild)
+                attachment_url = None
+                if message.attachments:
+                    attachment_url = message.attachments[0].url
+
+                embed = self.build_embed(guild, image_url=attachment_url)
                 await message.edit(embed=embed)
 
             except (discord.NotFound, discord.Forbidden):
@@ -107,7 +114,7 @@ class VCLeaderboard(commands.Cog):
 
     # -------------------- EMBED BUILDER --------------------
 
-    def build_embed(self, guild: discord.Guild):
+    def build_embed(self, guild: discord.Guild, image_url=None):
         gid = str(guild.id)
         data = self.store.get(gid, {})
         items = sorted(data.items(), key=lambda x: x[1], reverse=True)[:10]
@@ -118,6 +125,11 @@ class VCLeaderboard(commands.Cog):
             timestamp=discord.utils.utcnow(),
         )
 
+        # Set image at the top (displays before description content)
+        if image_url:
+            embed.set_image(url=image_url)
+
+        # Build leaderboard entries
         if not items:
             embed.description = "No voice XP recorded yet."
         else:
@@ -147,14 +159,37 @@ class VCLeaderboard(commands.Cog):
             )
             return
 
-        embed = self.build_embed(interaction.guild)
+        # Prepare the embed image (resize local image and attach it)
+        file = None
+        attachment_name = None
+        if IMAGE_SOURCE.exists():
+            try:
+                img = Image.open(IMAGE_SOURCE).convert("RGBA")
+                base_width = 800
+                wpercent = base_width / float(img.width)
+                hsize = int((float(img.height) * float(wpercent)))
+                img = img.resize((base_width, hsize), Image.LANCZOS)
+
+                buf = BytesIO()
+                img.save(buf, format="PNG")
+                buf.seek(0)
+                attachment_name = "vc-embed.png"
+                file = discord.File(fp=buf, filename=attachment_name)
+            except Exception:
+                file = None
+
+        image_url = f"attachment://{attachment_name}" if attachment_name else None
+        embed = self.build_embed(interaction.guild, image_url=image_url)
 
         await interaction.response.send_message(
             "✅ Leaderboard set! It will auto-refresh every 30 minutes.",
             ephemeral=True,
         )
 
-        msg = await interaction.channel.send(embed=embed)
+        if file:
+            msg = await interaction.channel.send(embed=embed, file=file)
+        else:
+            msg = await interaction.channel.send(embed=embed)
 
         self.meta[gid] = {
             "channel_id": interaction.channel.id,
