@@ -125,10 +125,6 @@ class VCLeaderboard(commands.Cog):
             timestamp=discord.utils.utcnow(),
         )
 
-        # Set image at the top (displays before description content)
-        if image_url:
-            embed.set_image(url=image_url)
-
         # Build leaderboard entries
         if not items:
             embed.description = "No voice XP recorded yet."
