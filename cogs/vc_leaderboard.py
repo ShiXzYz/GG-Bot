@@ -10,7 +10,7 @@ STORE_PATH = Path(__file__).resolve().parent.parent / "vc_points.json"
 META_PATH = Path(__file__).resolve().parent.parent / "vc_lb_meta.json"
 IMAGE_SOURCE = Path(__file__).resolve().parent.parent / "vc-embed.jpg"
 
-IMAGE_URL = "https://cdn.discordapp.com/attachments/810228635121876992/1473918556281376893/image.png?ex=6997f51f&is=6996a39f&hm=9d8b8afd63c514f013999b4e8c1b7ae8283f546dc6cbd517fed5fd6831762ad1&"
+IMAGE_URL = "https://github.com/ShiXzYz/GG-Bot/blob/main/vc-embed.jpg?raw=true"
 
 # -------------------- STORAGE --------------------
 
