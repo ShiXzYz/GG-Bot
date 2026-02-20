@@ -127,6 +127,8 @@ class VCLeaderboard(commands.Cog):
         if image_url:
             embed.set_image(url=image_url)
 
+        embed.set_thumbnail(url="https://github.com/ShiXzYz/GG-Bot/blob/main/bob.png?raw=true")
+
         # Build leaderboard entries
         if not items:
             embed.description = "No voice XP recorded yet."
