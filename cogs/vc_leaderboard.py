@@ -127,11 +127,17 @@ class VCLeaderboard(commands.Cog):
         if image_url:
             embed.set_image(url=image_url)
 
-        embed.set_thumbnail(url="https://github.com/ShiXzYz/GG-Bot/blob/main/bob.png?raw=true")
+        embed.set_thumbnail(url="https://github.com/ShiXzYz/GG-Bot/blob/main/bobba.png?raw=true")
+
+        intro = (
+        "Who is going to take the top place of sitting in the chair the longest?!? "
+        "Winner gets a special role in the end of the term! Letsssss rummbbleee 🔥\n"
+        "\u200b\n"  # zero-width space creates a visible gap
+        )
 
         # Build leaderboard entries
         if not items:
-            embed.description = "No voice XP recorded yet."
+            embed.description = intro + "No voice XP recorded yet."
         else:
             lines = []
             for i, (uid, pts) in enumerate(items, start=1):
@@ -139,7 +145,7 @@ class VCLeaderboard(commands.Cog):
                 name = member.display_name if member else f"User {uid}"
                 lines.append(f"`#{i}` **{name}** — `{pts:,}` pts")
 
-            embed.description = "\n".join(lines)
+            embed.description = intro + "\n".join(lines)
 
         embed.set_footer(text="Auto-refreshes every 30m • Refreshed at")
         return embed
