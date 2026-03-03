@@ -10,7 +10,7 @@ STORE_PATH = Path(__file__).resolve().parent.parent / "vc_points.json"
 META_PATH = Path(__file__).resolve().parent.parent / "vc_lb_meta.json"
 IMAGE_SOURCE = Path(__file__).resolve().parent.parent / "vc-embed.jpg"
 
-IMAGE_URL = "https://github.com/ShiXzYz/GG-Bot/blob/main/vc-embed.jpg?raw=true"
+IMAGE_URL = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/vc-embed.jpg?raw=true"
 
 # -------------------- STORAGE --------------------
 
@@ -127,7 +127,7 @@ class VCLeaderboard(commands.Cog):
         if image_url:
             embed.set_image(url=image_url)
 
-        embed.set_thumbnail(url="https://github.com/ShiXzYz/GG-Bot/blob/main/bobba.png?raw=true")
+        embed.set_thumbnail(url="https://github.com/ShiXzYz/GG-Bot/blob/main/images/bobba.png?raw=true")
 
         intro = (
         "Who is going to take the top place of sitting in the chair the longest?!? "
