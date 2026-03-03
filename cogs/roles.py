@@ -58,12 +58,17 @@ class Roles(commands.Cog):
         save_data(self.data)
 
     async def ensure_guild(self, guild_id: str):
+        # ensure we have a record for the guild; also track auto_role
         if guild_id not in self.data:
-            self.data[guild_id] = {"messages": {}}
+            self.data[guild_id] = {"messages": {}, "auto_role": None}
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        role = member.guild.get_role(AUTO_ROLE_ID)
+        # assign configured auto-role from data, falling back to config
+        guild_id = str(member.guild.id)
+        await self.ensure_guild(guild_id)
+        role_id = self.data[guild_id].get("auto_role") or AUTO_ROLE_ID
+        role = member.guild.get_role(role_id)
         if role:
             await member.add_roles(role)
 
@@ -201,6 +206,27 @@ class Roles(commands.Cog):
             role = interaction.guild.get_role(rid)
             lines.append(f"{em} → {role.name if role else rid}")
         await interaction.response.send_message("\n".join(lines), ephemeral=True)
+
+    @roles.command(name="set_auto")
+    @app_commands.describe(role="Role to give new members automatically")
+    @app_commands.default_permissions(manage_guild=True)
+    async def set_auto(self, interaction: discord.Interaction, role: discord.Role):
+        """Set the auto-assign role for new members."""
+        guild_id = str(interaction.guild_id)
+        await self.ensure_guild(guild_id)
+        self.data[guild_id]["auto_role"] = role.id
+        save_data(self.data)
+        await interaction.response.send_message(f"✅ Set auto-role to **{role.name}**", ephemeral=True)
+
+    @roles.command(name="unset_auto")
+    @app_commands.default_permissions(manage_guild=True)
+    async def unset_auto(self, interaction: discord.Interaction):
+        """Clear the auto-assign role and revert to config value."""
+        guild_id = str(interaction.guild_id)
+        await self.ensure_guild(guild_id)
+        self.data[guild_id]["auto_role"] = None
+        save_data(self.data)
+        await interaction.response.send_message("✅ Auto-role cleared; using default configuration.", ephemeral=True)
 
 
 async def setup(bot):
