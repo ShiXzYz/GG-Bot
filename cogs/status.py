@@ -9,6 +9,8 @@ from pathlib import Path
 
 STATUS_META_PATH = Path(__file__).resolve().parent.parent / "status_meta.json"
 
+BANNER_IMAGE = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/status_head.jpg?raw=true"
+
 
 def load_json(path):
     if path.exists():
@@ -45,21 +47,26 @@ class Status(commands.Cog):
     def cog_unload(self):
         self.refresh_status.cancel()
 
-    async def build_embed(self) -> discord.Embed:
-        all_online = True
+    # -------------------- BANNER EMBED --------------------
 
+    def build_banner(self):
+        banner = discord.Embed(color=discord.Color.dark_green())
+        banner.set_image(url=BANNER_IMAGE)
+        banner.set_footer(text="\u200b")
+        return banner
+
+    # -------------------- STATUS DASHBOARD --------------------
+
+    async def build_embed(self) -> discord.Embed:
         embed = discord.Embed(
             description="**S Y S T E M  ·  D A S H B O A R D**\n` 🟢 ONLINE ` | ` 🟡 MAINTENANCE ` | ` 🔴 OFFLINE `\n" + "─" * 35,
-            color=0x2B2D31,
+            color=discord.Color.dark_green(),
             timestamp=discord.utils.utcnow()
         )
-        embed.set_image(url="https://github.com/ShiXzYz/GG-Bot/blob/main/images/status_head.jpg?raw=true")
 
         for srv in SERVERS:
             try:
                 server = JavaServer.lookup(f"{srv['address']}:{srv['port']}")
-
-                # Run blocking mcstatus call in thread
                 status = await asyncio.to_thread(server.status)
 
                 players_online = status.players.online
@@ -85,15 +92,12 @@ class Status(commands.Cog):
 
             except Exception:
                 content = "> **Network State:** 🔴 Offline\n> *Connection refused by host.*"
-                all_online = False
 
             embed.add_field(
                 name=f"📡 {srv['name'].upper()}",
                 value=content + "\n" + "─" * 25,
                 inline=False
             )
-
-        embed.color = discord.Color.dark_green()
 
         if self.bot.user:
             embed.set_author(
@@ -106,6 +110,8 @@ class Status(commands.Cog):
         embed.set_footer(text="LIVE TELEMETRY")
 
         return embed
+
+    # -------------------- AUTO REFRESH --------------------
 
     @tasks.loop(minutes=30)
     async def refresh_status(self):
@@ -124,12 +130,17 @@ class Status(commands.Cog):
 
             try:
                 message = await channel.fetch_message(meta["message_id"])
+
+                banner = self.build_banner()
                 embed = await self.build_embed()
-                await message.edit(embed=embed)
+
+                await message.edit(embeds=[banner, embed])
 
             except (discord.NotFound, discord.Forbidden):
                 self.meta.pop(gid, None)
                 save_json(STATUS_META_PATH, self.meta)
+
+    # -------------------- COMMAND --------------------
 
     @app_commands.command(name="servers", description="Show server status dashboard")
     async def servers(self, interaction: discord.Interaction):
@@ -142,12 +153,12 @@ class Status(commands.Cog):
             )
             return
 
-        # Prevent interaction timeout
         await interaction.response.defer(ephemeral=True)
 
+        banner = self.build_banner()
         embed = await self.build_embed()
 
-        msg = await interaction.channel.send(embed=embed)
+        msg = await interaction.channel.send(embeds=[banner, embed])
 
         self.meta[gid] = {
             "channel_id": interaction.channel.id,
