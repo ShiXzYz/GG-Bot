@@ -49,11 +49,11 @@ class Status(commands.Cog):
         all_online = True
 
         embed = discord.Embed(
-            title="S Y S T E M  ·  D A S H B O A R D",
-            description="` 🟢 ONLINE ` | ` 🟡 MAINTENANCE ` | ` 🔴 OFFLINE `\n" + "─" * 35,
+            description="**S Y S T E M  ·  D A S H B O A R D**\n` 🟢 ONLINE ` | ` 🟡 MAINTENANCE ` | ` 🔴 OFFLINE `\n" + "─" * 35,
             color=0x2B2D31,
             timestamp=discord.utils.utcnow()
         )
+        embed.set_image(url="https://github.com/ShiXzYz/GG-Bot/blob/main/images/status_head.jpg?raw=true")
 
         for srv in SERVERS:
             try:
