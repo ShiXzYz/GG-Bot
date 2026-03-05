@@ -2,6 +2,7 @@ vc_lb_meta.json
 vc_points.json
 roles_menus.json
 status_meta.json
+config.py
 
 # Python
 __pycache__/
