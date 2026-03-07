@@ -179,6 +179,9 @@ class Ranking(commands.Cog):
         guild_id = str(interaction.guild.id)
         user_id = str(user.id)
 
+        # make sure the guild has entries to avoid KeyError
+        self.ensure_guild(guild_id)
+
         if user_id not in self.data["users"][guild_id]:
             await interaction.response.send_message("User not ranked.", ephemeral=True)
             return
@@ -203,6 +206,8 @@ class Ranking(commands.Cog):
     async def leaderboard(self, interaction: discord.Interaction):
 
         guild_id = str(interaction.guild.id)
+        # ensure guild isinitialised so we don't crash when no data exists
+        self.ensure_guild(guild_id)
 
         users = self.data["users"][guild_id]
 
@@ -242,8 +247,12 @@ class Ranking(commands.Cog):
         guild_id = str(interaction.guild.id)
         user_id = str(user.id)
 
+        # avoid KeyError and ensure a proper guild entry exists
+        self.ensure_guild(guild_id)
+
         if user_id not in self.data["users"][guild_id]:
-            await interaction.response.send_message("User not ranked.")
+            # we already deferred so follow up instead
+            await interaction.followup.send("User not ranked.", ephemeral=True)
             return
 
         xp = self.data["users"][guild_id][user_id]["xp"]
@@ -257,85 +266,113 @@ class Ranking(commands.Cog):
 
         rank = self.get_rank_position(guild_id, user_id)
 
-        width = 900
-        height = 280
-
-        img = Image.new("RGB", (width, height), (32, 34, 37))
-        draw = ImageDraw.Draw(img)
-
-        bar_x = 260
-        bar_y = 200
-        bar_width = 580
-        bar_height = 35
-
-        draw.rectangle(
-            [bar_x, bar_y, bar_x + bar_width, bar_y + bar_height],
-            fill=(54, 57, 63),
-            radius=20
-        )
-
-        draw.rectangle(
-            [bar_x, bar_y, bar_x + int(bar_width * progress), bar_y + bar_height],
-            fill=(88, 101, 242),
-            radius=20
-        )
-
+        # generate image inside try/except
         try:
-            font_big = ImageFont.truetype("arial.ttf", 45)
-            font_small = ImageFont.truetype("arial.ttf", 28)
-        except:
-            font_big = ImageFont.load_default()
-            font_small = ImageFont.load_default()
+            width = 900
+            height = 280
 
-        draw.text((260, 60), user.display_name, font=font_big, fill=(255, 255, 255))
+            img = Image.new("RGB", (width, height), (32, 34, 37))
+            draw = ImageDraw.Draw(img)
 
-        draw.text(
-            (260, 130),
-            f"LEVEL {level}",
-            font=font_small,
-            fill=(255, 255, 255)
-        )
+            bar_x = 260
+            bar_y = 200
+            bar_width = 580
+            bar_height = 35
 
-        draw.text(
-            (700, 130),
-            f"RANK #{rank}",
-            font=font_small,
-            fill=(255, 255, 255)
-        )
+            # draw bars with rounded corners; use rounded_rectangle as radius parameter
+            try:
+                draw.rounded_rectangle(
+                    [bar_x, bar_y, bar_x + bar_width, bar_y + bar_height],
+                    fill=(54, 57, 63),
+                    radius=20
+                )
 
-        draw.text(
-            (260, 170),
-            f"{xp} XP",
-            font=font_small,
-            fill=(200, 200, 200)
-        )
+                draw.rounded_rectangle(
+                    [bar_x, bar_y, bar_x + int(bar_width * progress), bar_y + bar_height],
+                    fill=(88, 101, 242),
+                    radius=20
+                )
+            except AttributeError:
+                # older Pillow versions may not have rounded_rectangle
+                draw.rectangle(
+                    [bar_x, bar_y, bar_x + bar_width, bar_y + bar_height],
+                    fill=(54, 57, 63)
+                )
+                draw.rectangle(
+                    [bar_x, bar_y, bar_x + int(bar_width * progress), bar_y + bar_height],
+                    fill=(88, 101, 242)
+                )
 
-        avatar = requests.get(user.display_avatar.url)
+            try:
+                font_big = ImageFont.truetype("arial.ttf", 45)
+                font_small = ImageFont.truetype("arial.ttf", 28)
+            except:
+                font_big = ImageFont.load_default()
+                font_small = ImageFont.load_default()
 
-        avatar = Image.open(BytesIO(avatar.content)).resize((180, 180))
+            draw.text((260, 60), user.display_name, font=font_big, fill=(255, 255, 255))
 
-        mask = Image.new("L", (180, 180), 0)
-        mask_draw = ImageDraw.Draw(mask)
-        mask_draw.ellipse((0, 0, 180, 180), fill=255)
+            draw.text(
+                (260, 130),
+                f"LEVEL {level}",
+                font=font_small,
+                fill=(255, 255, 255)
+            )
 
-        img.paste(avatar, (40, 50), mask)
+            draw.text(
+                (700, 130),
+                f"RANK #{rank}",
+                font=font_small,
+                fill=(255, 255, 255)
+            )
 
-        buffer = BytesIO()
+            draw.text(
+                (260, 170),
+                f"{xp} XP",
+                font=font_small,
+                fill=(200, 200, 200)
+            )
 
-        img.save(buffer, "PNG")
+            # fetch avatar with a timeout so the command doesn't hang indefinitely
+            try:
+                resp = requests.get(user.display_avatar.url, timeout=10)
+                avatar = Image.open(BytesIO(resp.content)).resize((180, 180))
+            except Exception:
+                avatar = None
 
-        buffer.seek(0)
+            if avatar:
+                mask = Image.new("L", (180, 180), 0)
+                mask_draw = ImageDraw.Draw(mask)
+                mask_draw.ellipse((0, 0, 180, 180), fill=255)
 
-        file = discord.File(buffer, filename="rank.png")
+                img.paste(avatar, (40, 50), mask)
 
-        await interaction.followup.send(file=file)
+            buffer = BytesIO()
+            img.save(buffer, "PNG")
+            buffer.seek(0)
+            file = discord.File(buffer, filename="rank.png")
+
+            await interaction.followup.send(file=file)
+        except Exception:
+            await interaction.followup.send("Failed to generate profile card.", ephemeral=True)
 
     # -----------------------
     # ROLE CONFIG
     # -----------------------
 
+    def admin_or_owner_check():
+        async def predicate(interaction: discord.Interaction):
+            # allow server owner or anyone with administrator permission
+            if interaction.guild is None:
+                return False
+            if interaction.user == interaction.guild.owner:
+                return True
+            return interaction.user.guild_permissions.administrator
+        return app_commands.check(predicate)
+
     @rank.command(name="set")
-    @app_commands.default_permissions(manage_roles=True)
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def set_rank(self, interaction: discord.Interaction, xp: int, role: discord.Role):
 
         guild_id = str(interaction.guild.id)
@@ -349,7 +386,8 @@ class Ranking(commands.Cog):
         )
 
     @rank.command(name="remove")
-    @app_commands.default_permissions(manage_roles=True)
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def remove_rank(self, interaction: discord.Interaction, xp: int):
 
         guild_id = str(interaction.guild.id)
@@ -371,10 +409,11 @@ class Ranking(commands.Cog):
             )
 
     @rank.command(name="list")
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def list_ranks(self, interaction: discord.Interaction):
 
         guild_id = str(interaction.guild.id)
-
         self.ensure_guild(guild_id)
 
         rank_roles = self.data["rank_roles"][guild_id]
