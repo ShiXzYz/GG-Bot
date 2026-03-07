@@ -103,16 +103,26 @@ class Ranking(commands.Cog):
                 highest_xp = xp_req
                 highest_role = role_id
 
+        # Always keep the 0 XP role if it exists
+        zero_role = rank_roles.get("0")
+
+        # Remove roles that are not the highest_role and not the 0 XP role
         for role_id in rank_roles.values():
-            role = member.guild.get_role(role_id)
+            if role_id != highest_role and role_id != zero_role:
+                role = member.guild.get_role(role_id)
+                if role and role in member.roles:
+                    await member.remove_roles(role)
 
-            if role and role in member.roles:
-                await member.remove_roles(role)
-
+        # Add the highest_role if not already have it
         if highest_role:
             role = member.guild.get_role(highest_role)
+            if role and role not in member.roles:
+                await member.add_roles(role)
 
-            if role:
+        # Ensure the 0 XP role is always assigned if it exists
+        if zero_role:
+            role = member.guild.get_role(zero_role)
+            if role and role not in member.roles:
                 await member.add_roles(role)
 
     # -----------------------
@@ -121,6 +131,8 @@ class Ranking(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
+        if len(message.content) < 5:
+            return
 
         if message.author.bot or not message.guild:
             return
@@ -131,12 +143,12 @@ class Ranking(commands.Cog):
         self.ensure_guild(guild_id)
 
         if user_id not in self.data["users"][guild_id]:
-            return
+            self.data["users"][guild_id][user_id] = {
+                "xp": 0,
+                "active": True
+            }
 
         user = self.data["users"][guild_id][user_id]
-
-        if not user["active"]:
-            return
 
         cooldown_key = f"{guild_id}:{user_id}"
 
@@ -154,49 +166,6 @@ class Ranking(commands.Cog):
         await self.update_user_roles(message.author)
 
         await self.bot.process_commands(message)
-
-    # -----------------------
-    # JOIN
-    # -----------------------
-
-    @rank.command(name="join")
-    async def join(self, interaction: discord.Interaction):
-
-        guild_id = str(interaction.guild.id)
-        user_id = str(interaction.user.id)
-
-        self.ensure_guild(guild_id)
-
-        if user_id not in self.data["users"][guild_id]:
-            self.data["users"][guild_id][user_id] = {
-                "xp": 0,
-                "active": True
-            }
-        else:
-            self.data["users"][guild_id][user_id]["active"] = True
-
-        await interaction.response.send_message(
-            "✅ You joined the ranking system!",
-            ephemeral=True
-        )
-
-    # -----------------------
-    # LEAVE
-    # -----------------------
-
-    @rank.command(name="leave")
-    async def leave(self, interaction: discord.Interaction):
-
-        guild_id = str(interaction.guild.id)
-        user_id = str(interaction.user.id)
-
-        if user_id in self.data["users"][guild_id]:
-            self.data["users"][guild_id][user_id]["active"] = False
-
-        await interaction.response.send_message(
-            "❌ You left the ranking system",
-            ephemeral=True
-        )
 
     # -----------------------
     # XP COMMAND
@@ -265,6 +234,8 @@ class Ranking(commands.Cog):
 
     @rank.command(name="profile")
     async def profile(self, interaction: discord.Interaction, user: discord.Member = None):
+
+        await interaction.response.defer()
 
         user = user or interaction.user
 
@@ -357,7 +328,7 @@ class Ranking(commands.Cog):
 
         file = discord.File(buffer, filename="rank.png")
 
-        await interaction.response.send_message(file=file)
+        await interaction.followup.send(file=file)
 
     # -----------------------
     # ROLE CONFIG
@@ -376,6 +347,58 @@ class Ranking(commands.Cog):
         await interaction.response.send_message(
             f"{role.mention} unlocks at {xp} XP"
         )
+
+    @rank.command(name="remove")
+    @app_commands.default_permissions(manage_roles=True)
+    async def remove_rank(self, interaction: discord.Interaction, xp: int):
+
+        guild_id = str(interaction.guild.id)
+
+        self.ensure_guild(guild_id)
+
+        if str(xp) in self.data["rank_roles"][guild_id]:
+            role_id = self.data["rank_roles"][guild_id][str(xp)]
+            role = interaction.guild.get_role(role_id)
+            role_name = role.name if role else "Unknown Role"
+            del self.data["rank_roles"][guild_id][str(xp)]
+            await interaction.response.send_message(
+                f"Removed rank for {xp} XP ({role_name})"
+            )
+        else:
+            await interaction.response.send_message(
+                f"No rank set for {xp} XP",
+                ephemeral=True
+            )
+
+    @rank.command(name="list")
+    async def list_ranks(self, interaction: discord.Interaction):
+
+        guild_id = str(interaction.guild.id)
+
+        self.ensure_guild(guild_id)
+
+        rank_roles = self.data["rank_roles"][guild_id]
+
+        if not rank_roles:
+            await interaction.response.send_message(
+                "No rank roles configured.",
+                ephemeral=True
+            )
+            return
+
+        embed = discord.Embed(title="Rank Roles", color=0x5865F2)
+
+        desc = ""
+
+        for xp_req in sorted(rank_roles.keys(), key=int):
+            role_id = rank_roles[xp_req]
+            role = interaction.guild.get_role(role_id)
+            role_name = role.name if role else "Unknown Role"
+            desc += f"**{xp_req} XP** — {role_name}\n"
+
+        embed.description = desc
+
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot):
