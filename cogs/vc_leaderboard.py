@@ -11,7 +11,7 @@ META_PATH = Path(__file__).resolve().parent.parent / "vc_lb_meta.json"
 IMAGE_SOURCE = Path(__file__).resolve().parent.parent / "vc-embed.jpg"
 
 IMAGE_URL = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/vc-embed.jpg?raw=true"
-BANNER_IMAGE = IMAGE_URL
+BANNER_IMAGE = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/leaderboard.jpg?raw=true"
 
 # -------------------- STORAGE --------------------
 
@@ -131,6 +131,7 @@ class VCLeaderboard(commands.Cog):
             timestamp=discord.utils.utcnow(),
         )
 
+        embed.set_image(url=IMAGE_URL)
         embed.set_thumbnail(url="https://github.com/ShiXzYz/GG-Bot/blob/main/images/bobba.png?raw=true")
 
         intro = (
