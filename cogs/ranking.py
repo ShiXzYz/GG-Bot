@@ -154,7 +154,7 @@ class Ranking(commands.Cog):
 
         now = time.time()
 
-        if now - self.cooldowns.get(cooldown_key, 0) < 30:
+        if now - self.cooldowns.get(cooldown_key, 0) < 5:
             return
 
         xp_gain = random.randint(5, 10)
@@ -304,8 +304,8 @@ class Ranking(commands.Cog):
                 )
 
             try:
-                font_big = ImageFont.truetype("arial.ttf", 45)
-                font_small = ImageFont.truetype("arial.ttf", 28)
+                font_big = ImageFont.truetype("arial.ttf", 60)
+                font_small = ImageFont.truetype("arial.ttf", 38)
             except:
                 font_big = ImageFont.load_default()
                 font_small = ImageFont.load_default()

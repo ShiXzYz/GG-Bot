@@ -11,6 +11,7 @@ META_PATH = Path(__file__).resolve().parent.parent / "vc_lb_meta.json"
 IMAGE_SOURCE = Path(__file__).resolve().parent.parent / "vc-embed.jpg"
 
 IMAGE_URL = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/vc-embed.jpg?raw=true"
+BANNER_IMAGE = IMAGE_URL
 
 # -------------------- STORAGE --------------------
 
@@ -44,6 +45,12 @@ class VCLeaderboard(commands.Cog):
     def cog_unload(self):
         self.second_update.cancel()
         self.refresh_lb.cancel()
+
+    # Banner embed
+    def build_banner(self):
+        banner = discord.Embed(color=0x5865F2)
+        banner.set_image(url=BANNER_IMAGE)
+        return banner
 
     # -------------------- VOICE XP (1 Point Per Second) --------------------
 
@@ -102,8 +109,9 @@ class VCLeaderboard(commands.Cog):
 
             try:
                 message = await channel.fetch_message(meta["message_id"])
-                embed = self.build_embed(guild, image_url=IMAGE_URL)
-                await message.edit(embed=embed)
+                banner = self.build_banner()
+                embed = self.build_embed(guild)
+                await message.edit(embeds=[banner, embed])
 
             except (discord.NotFound, discord.Forbidden):
                 # Leaderboard message was deleted or inaccessible — clean up
@@ -112,7 +120,7 @@ class VCLeaderboard(commands.Cog):
 
     # -------------------- EMBED BUILDER --------------------
 
-    def build_embed(self, guild: discord.Guild, image_url=None):
+    def build_embed(self, guild: discord.Guild):
         gid = str(guild.id)
         data = self.store.get(gid, {})
         items = sorted(data.items(), key=lambda x: x[1], reverse=True)[:10]
@@ -122,10 +130,6 @@ class VCLeaderboard(commands.Cog):
             color=0x5865F2,
             timestamp=discord.utils.utcnow(),
         )
-
-        # Set image at the top (displays before description content)
-        if image_url:
-            embed.set_image(url=image_url)
 
         embed.set_thumbnail(url="https://github.com/ShiXzYz/GG-Bot/blob/main/images/bobba.png?raw=true")
 
@@ -165,14 +169,15 @@ class VCLeaderboard(commands.Cog):
             )
             return
 
-        embed = self.build_embed(interaction.guild, image_url=IMAGE_URL)
+        embed = self.build_embed(interaction.guild)
 
         await interaction.response.send_message(
             "✅ Leaderboard set! It will auto-refresh every 30 minutes.",
             ephemeral=True,
         )
 
-        msg = await interaction.channel.send(embed=embed)
+        banner = self.build_banner()
+        msg = await interaction.channel.send(embeds=[banner, embed])
 
         self.meta[gid] = {
             "channel_id": interaction.channel.id,
