@@ -304,32 +304,43 @@ class Ranking(commands.Cog):
                 )
 
             try:
-                font_big = ImageFont.truetype("arial.ttf", 60)
-                font_small = ImageFont.truetype("arial.ttf", 38)
+                font_name = ImageFont.truetype("fonts/Roboto-Regular.ttf", 50)
+                font_level = ImageFont.truetype("fonts/Roboto-Regular.ttf", 30)
+                font_xp = ImageFont.truetype("fonts/Roboto-Regular.ttf", 20)
             except:
-                font_big = ImageFont.load_default()
-                font_small = ImageFont.load_default()
+                font_name = ImageFont.load_default()
+                font_level = ImageFont.load_default()
+                font_xp = ImageFont.load_default()
 
-            draw.text((260, 60), user.display_name, font=font_big, fill=(255, 255, 255))
-
+            # Username
             draw.text(
-                (260, 130),
+                (260, 60),
+                user.display_name,
+                font=font_name,
+                fill=(255, 255, 255)
+            )
+
+            # Level
+            draw.text(
+                (260, 135),
                 f"LEVEL {level}",
-                font=font_small,
+                font=font_level,
                 fill=(255, 255, 255)
             )
 
+            # Rank
             draw.text(
-                (700, 130),
+                (650, 135),
                 f"RANK #{rank}",
-                font=font_small,
+                font=font_level,
                 fill=(255, 255, 255)
             )
 
+            # XP text
             draw.text(
                 (260, 170),
                 f"{xp} XP",
-                font=font_small,
+                font=font_xp,
                 fill=(200, 200, 200)
             )
 
