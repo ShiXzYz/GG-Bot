@@ -4,29 +4,10 @@ from discord import app_commands
 from mcstatus import JavaServer
 from config import SERVERS
 import asyncio
-import json
-from pathlib import Path
 import socket
+from database import load_status_meta, save_status_meta
 
-STATUS_META_PATH = Path(__file__).resolve().parent.parent / "status_meta.json"
 BANNER_IMAGE = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/status_head.jpg?raw=true"
-
-# -------------------- STORAGE --------------------
-def load_json(path):
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-def save_json(path, data):
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-    except Exception:
-        pass
 
 # -------------------- UTILS --------------------
 def progress_bar(current, maximum, length=12):
@@ -48,7 +29,7 @@ def is_port_open(port: int, host="127.0.0.1") -> bool:
 class Status(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.meta = load_json(STATUS_META_PATH)
+        self.meta = load_status_meta()
         self.refresh_status.start()
 
     def cog_unload(self):
@@ -130,7 +111,7 @@ class Status(commands.Cog):
             channel = guild.get_channel(meta["channel_id"])
             if not channel:
                 self.meta.pop(gid, None)
-                save_json(STATUS_META_PATH, self.meta)
+                save_status_meta(self.meta)
                 continue
 
             try:
@@ -140,7 +121,7 @@ class Status(commands.Cog):
                 await message.edit(embeds=[banner, embed])
             except (discord.NotFound, discord.Forbidden):
                 self.meta.pop(gid, None)
-                save_json(STATUS_META_PATH, self.meta)
+                save_status_meta(self.meta)
 
     # Command to post status dashboard
     @app_commands.command(name="servers", description="Show server status dashboard")
@@ -159,7 +140,7 @@ class Status(commands.Cog):
         msg = await interaction.channel.send(embeds=[banner, embed])
 
         self.meta[gid] = {"channel_id": interaction.channel.id, "message_id": msg.id}
-        save_json(STATUS_META_PATH, self.meta)
+        save_status_meta(self.meta)
 
         await interaction.followup.send(
             "✅ Status dashboard posted! It will auto-refresh every 30 minutes.",

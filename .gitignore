@@ -1,9 +1,15 @@
-vc_lb_meta.json
-vc_points.json
-roles_menus.json
-status_meta.json
-ranking_data.json
+# Database
+gg_bot.db
+
+# Configuration (contains server-specific IDs, safe to commit)
 config.py
+
+# Old JSON files (no longer used)
+# vc_lb_meta.json
+# vc_points.json
+# roles_menus.json
+# status_meta.json
+# ranking_data.json
 
 # Python
 __pycache__/

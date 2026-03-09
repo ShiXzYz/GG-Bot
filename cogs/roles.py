@@ -1,23 +1,8 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import json
-import os
 from config import AUTO_ROLE_ID
-
-STORAGE_FILE = "roles_menus.json"
-
-
-def load_data():
-    if not os.path.exists(STORAGE_FILE):
-        return {}
-    with open(STORAGE_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_data(data):
-    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+from database import load_roles_data as load_data, save_roles_data as save_data
 
 
 class RoleButtons(discord.ui.View):

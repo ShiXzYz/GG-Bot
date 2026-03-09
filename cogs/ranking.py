@@ -1,27 +1,12 @@
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-import json
-import os
 import random
 import time
 from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
-
-STORAGE_FILE = "ranking_data.json"
-
-
-def load_data():
-    if not os.path.exists(STORAGE_FILE):
-        return {"users": {}, "rank_roles": {}}
-    with open(STORAGE_FILE) as f:
-        return json.load(f)
-
-
-def save_data(data):
-    with open(STORAGE_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+from database import load_ranking_data as load_data, save_ranking_data as save_data
 
 
 def xp_to_level(xp):

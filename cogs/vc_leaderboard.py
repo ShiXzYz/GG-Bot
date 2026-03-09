@@ -1,43 +1,20 @@
-import json
-from pathlib import Path
 from io import BytesIO
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 from PIL import Image
-
-STORE_PATH = Path(__file__).resolve().parent.parent / "vc_points.json"
-META_PATH = Path(__file__).resolve().parent.parent / "vc_lb_meta.json"
-IMAGE_SOURCE = Path(__file__).resolve().parent.parent / "vc-embed.jpg"
+from database import load_vc_points, save_vc_points, load_vc_lb_meta, save_vc_lb_meta
 
 IMAGE_URL = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/vc-embed.jpg?raw=true"
 BANNER_IMAGE = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/leaderboard.jpg?raw=true"
-
-# -------------------- STORAGE --------------------
-
-def load_json(path):
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-def save_json(path, data):
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-    except Exception:
-        pass
 
 # -------------------- COG --------------------
 
 class VCLeaderboard(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.store = load_json(STORE_PATH)
-        self.meta = load_json(META_PATH)
+        self.store = load_vc_points()
+        self.meta = load_vc_lb_meta()
         self._save_tick = 0
         self.second_update.start()
         self.refresh_lb.start()
@@ -87,7 +64,7 @@ class VCLeaderboard(commands.Cog):
         self._save_tick += 1
         if self._save_tick >= 60:
             if changed_any:
-                save_json(STORE_PATH, self.store)
+                save_vc_points(self.store)
             self._save_tick = 0
 
     # -------------------- LEADERBOARD AUTO-REFRESH --------------------
@@ -104,7 +81,7 @@ class VCLeaderboard(commands.Cog):
             channel = guild.get_channel(meta["channel_id"])
             if not channel:
                 self.meta.pop(gid, None)
-                save_json(META_PATH, self.meta)
+                save_vc_lb_meta(self.meta)
                 continue
 
             try:
@@ -116,7 +93,7 @@ class VCLeaderboard(commands.Cog):
             except (discord.NotFound, discord.Forbidden):
                 # Leaderboard message was deleted or inaccessible — clean up
                 self.meta.pop(gid, None)
-                save_json(META_PATH, self.meta)
+                save_vc_lb_meta(self.meta)
 
     # -------------------- EMBED BUILDER --------------------
 
@@ -184,13 +161,13 @@ class VCLeaderboard(commands.Cog):
             "channel_id": interaction.channel.id,
             "message_id": msg.id,
         }
-        save_json(META_PATH, self.meta)
+        save_vc_lb_meta(self.meta)
 
     @app_commands.command(name="vc-reset", description="Reset all voice XP for this server")
     @app_commands.checks.has_permissions(administrator=True)
     async def vc_reset(self, interaction: discord.Interaction):
         self.store[str(interaction.guild.id)] = {}
-        save_json(STORE_PATH, self.store)
+        save_vc_points(self.store)
 
         await interaction.response.send_message(
             "✅ Voice XP has been reset for this server.",
