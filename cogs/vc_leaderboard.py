@@ -78,14 +78,25 @@ class VCLeaderboard(commands.Cog):
             if not guild:
                 continue
 
-            channel = guild.get_channel(meta["channel_id"])
+            # ensure numeric ids in case they were loaded as strings
+            channel_id = meta.get("channel_id")
+            try:
+                channel_id = int(channel_id)
+            except Exception:
+                pass
+            channel = guild.get_channel(channel_id)
             if not channel:
                 self.meta.pop(gid, None)
                 save_vc_lb_meta(self.meta)
                 continue
 
             try:
-                message = await channel.fetch_message(meta["message_id"])
+                message_id = meta.get("message_id")
+                try:
+                    message_id = int(message_id)
+                except Exception:
+                    pass
+                message = await channel.fetch_message(message_id)
                 banner = self.build_banner()
                 embed = self.build_embed(guild)
                 await message.edit(embeds=[banner, embed])

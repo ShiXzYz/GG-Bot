@@ -96,6 +96,11 @@ def load_ranking_data():
     cursor.execute('SELECT guild_id, xp_req, role_id FROM ranking_roles')
     for row in cursor.fetchall():
         guild_id, xp_req, role_id = row
+        # SQLite returns TEXT for the role_id column; convert to int for discord
+        try:
+            role_id = int(role_id)
+        except Exception:
+            pass
         if guild_id not in rank_roles:
             rank_roles[guild_id] = {}
         rank_roles[guild_id][str(xp_req)] = role_id
@@ -135,15 +140,28 @@ def load_roles_data():
     cursor.execute('SELECT guild_id, role_id FROM roles_auto')
     for row in cursor.fetchall():
         guild_id, role_id = row
+        try:
+            role_id = int(role_id)
+        except Exception:
+            pass
         if guild_id not in data:
             data[guild_id] = {"messages": {}, "auto_role": role_id}
 
     cursor.execute('SELECT guild_id, message_id, channel_id FROM roles_menus')
     for row in cursor.fetchall():
         guild_id, message_id, channel_id = row
+        try:
+            message_id = int(message_id)
+        except Exception:
+            pass
+        try:
+            channel_id = int(channel_id)
+        except Exception:
+            pass
         if guild_id not in data:
             data[guild_id] = {"messages": {}, "auto_role": None}
-        data[guild_id]["messages"][message_id] = {"channel_id": channel_id, "mappings": {}}
+        # store message_id as string key for consistency with how other code uses it
+        data[guild_id]["messages"][str(message_id)] = {"channel_id": channel_id, "mappings": {}}
 
     conn.close()
     return data
@@ -176,6 +194,15 @@ def load_status_meta():
     cursor.execute('SELECT guild_id, channel_id, message_id FROM status_meta')
     for row in cursor.fetchall():
         guild_id, channel_id, message_id = row
+        # convert to ints so get_channel/fetch_message accept them
+        try:
+            channel_id = int(channel_id)
+        except Exception:
+            pass
+        try:
+            message_id = int(message_id)
+        except Exception:
+            pass
         data[guild_id] = {"channel_id": channel_id, "message_id": message_id}
 
     conn.close()
@@ -203,6 +230,14 @@ def load_vc_lb_meta():
     cursor.execute('SELECT guild_id, channel_id, message_id FROM vc_lb_meta')
     for row in cursor.fetchall():
         guild_id, channel_id, message_id = row
+        try:
+            channel_id = int(channel_id)
+        except Exception:
+            pass
+        try:
+            message_id = int(message_id)
+        except Exception:
+            pass
         data[guild_id] = {"channel_id": channel_id, "message_id": message_id}
 
     conn.close()

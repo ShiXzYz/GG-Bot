@@ -83,6 +83,10 @@ class Ranking(commands.Cog):
 
         for xp_req, role_id in rank_roles.items():
             xp_req = int(xp_req)
+            try:
+                role_id = int(role_id)
+            except Exception:
+                pass
 
             if xp >= xp_req and xp_req > highest_xp:
                 highest_xp = xp_req
@@ -93,8 +97,12 @@ class Ranking(commands.Cog):
 
         # Remove roles that are not the highest_role and not the 0 XP role
         for role_id in rank_roles.values():
-            if role_id != highest_role and role_id != zero_role:
-                role = member.guild.get_role(role_id)
+            try:
+                rid = int(role_id)
+            except Exception:
+                rid = role_id
+            if rid != highest_role and rid != zero_role:
+                role = member.guild.get_role(rid)
                 if role and role in member.roles:
                     await member.remove_roles(role)
 
@@ -377,6 +385,15 @@ class Ranking(commands.Cog):
 
         self.data["rank_roles"][guild_id][str(xp)] = role.id
 
+        # immediately ensure any existing users who already have enough XP get the new role
+        for uid, udata in self.data["users"][guild_id].items():
+            try:
+                member = interaction.guild.get_member(int(uid))
+            except Exception:
+                member = None
+            if member:
+                await self.update_user_roles(member)
+
         await interaction.response.send_message(
             f"{role.mention} unlocks at {xp} XP"
         )
@@ -395,6 +412,14 @@ class Ranking(commands.Cog):
             role = interaction.guild.get_role(role_id)
             role_name = role.name if role else "Unknown Role"
             del self.data["rank_roles"][guild_id][str(xp)]
+            # after removal, rebuild roles for everyone in case they need to lose it
+            for uid, udata in self.data["users"][guild_id].items():
+                try:
+                    member = interaction.guild.get_member(int(uid))
+                except Exception:
+                    member = None
+                if member:
+                    await self.update_user_roles(member)
             await interaction.response.send_message(
                 f"Removed rank for {xp} XP ({role_name})"
             )
@@ -427,7 +452,11 @@ class Ranking(commands.Cog):
 
         for xp_req in sorted(rank_roles.keys(), key=int):
             role_id = rank_roles[xp_req]
-            role = interaction.guild.get_role(role_id)
+            try:
+                rid = int(role_id)
+            except Exception:
+                rid = role_id
+            role = interaction.guild.get_role(rid)
             role_name = role.name if role else "Unknown Role"
             desc += f"**{xp_req} XP** — {role_name}\n"
 

@@ -53,6 +53,10 @@ class Roles(commands.Cog):
         guild_id = str(member.guild.id)
         await self.ensure_guild(guild_id)
         role_id = self.data[guild_id].get("auto_role") or AUTO_ROLE_ID
+        try:
+            role_id = int(role_id)
+        except Exception:
+            pass
         role = member.guild.get_role(role_id)
         if role:
             await member.add_roles(role)
@@ -80,7 +84,11 @@ class Roles(commands.Cog):
                 member = await guild.fetch_member(payload.user_id)
             except Exception:
                 return
-        role = guild.get_role(role_id)
+        try:
+            rid = int(role_id)
+        except Exception:
+            rid = role_id
+        role = guild.get_role(rid)
         if role:
             try:
                 await member.add_roles(role)
@@ -106,7 +114,11 @@ class Roles(commands.Cog):
             member = await guild.fetch_member(payload.user_id)
         except Exception:
             return
-        role = guild.get_role(role_id)
+        try:
+            rid = int(role_id)
+        except Exception:
+            rid = role_id
+        role = guild.get_role(rid)
         if role:
             try:
                 await member.remove_roles(role)

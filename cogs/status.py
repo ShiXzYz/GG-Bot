@@ -108,14 +108,25 @@ class Status(commands.Cog):
             if not guild:
                 continue
 
-            channel = guild.get_channel(meta["channel_id"])
+            # meta values may be strings when loaded from older DBs
+            channel_id = meta.get("channel_id")
+            try:
+                channel_id = int(channel_id)
+            except Exception:
+                pass
+            channel = guild.get_channel(channel_id)
             if not channel:
                 self.meta.pop(gid, None)
                 save_status_meta(self.meta)
                 continue
 
             try:
-                message = await channel.fetch_message(meta["message_id"])
+                message_id = meta.get("message_id")
+                try:
+                    message_id = int(message_id)
+                except Exception:
+                    pass
+                message = await channel.fetch_message(message_id)
                 banner = self.build_banner()
                 embed = await self.build_embed()
                 await message.edit(embeds=[banner, embed])
