@@ -124,7 +124,7 @@ class Ranking(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if len(message.content) < 5:
+        if len(message.content) < 3:
             return
 
         if message.author.bot or not message.guild:
