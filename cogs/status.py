@@ -35,6 +35,16 @@ class Status(commands.Cog):
     def cog_unload(self):
         self.refresh_status.cancel()
 
+    # admin/owner permission check
+    def admin_or_owner_check():
+        async def predicate(interaction: discord.Interaction):
+            if interaction.guild is None:
+                return False
+            if interaction.user == interaction.guild.owner:
+                return True
+            return interaction.user.guild_permissions.administrator
+        return app_commands.check(predicate)
+
     # Banner embed
     def build_banner(self):
         banner = discord.Embed(color=discord.Color.dark_green())
@@ -136,6 +146,8 @@ class Status(commands.Cog):
 
     # Command to post status dashboard
     @app_commands.command(name="servers", description="Show server status dashboard")
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def servers(self, interaction: discord.Interaction):
         gid = str(interaction.guild.id)
         if gid in self.meta:

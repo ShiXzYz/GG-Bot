@@ -23,6 +23,15 @@ class VCLeaderboard(commands.Cog):
         self.second_update.cancel()
         self.refresh_lb.cancel()
 
+    def admin_or_owner_check():
+        async def predicate(interaction: discord.Interaction):
+            if interaction.guild is None:
+                return False
+            if interaction.user == interaction.guild.owner:
+                return True
+            return interaction.user.guild_permissions.administrator
+        return app_commands.check(predicate)
+
     # Banner embed
     def build_banner(self):
         banner = discord.Embed(color=0x5865F2)
@@ -146,7 +155,8 @@ class VCLeaderboard(commands.Cog):
     # -------------------- COMMANDS --------------------
 
     @app_commands.command(name="vc-lb", description="Post the live voice XP leaderboard")
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def vc_lb(self, interaction: discord.Interaction):
         gid = str(interaction.guild.id)
 
@@ -175,7 +185,8 @@ class VCLeaderboard(commands.Cog):
         save_vc_lb_meta(self.meta)
 
     @app_commands.command(name="vc-reset", description="Reset all voice XP for this server")
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def vc_reset(self, interaction: discord.Interaction):
         self.store[str(interaction.guild.id)] = {}
         save_vc_points(self.store)

@@ -42,6 +42,15 @@ class Roles(commands.Cog):
     async def cog_unload(self):
         save_data(self.data)
 
+    def admin_or_owner_check():
+        async def predicate(interaction: discord.Interaction):
+            if interaction.guild is None:
+                return False
+            if interaction.user == interaction.guild.owner:
+                return True
+            return interaction.user.guild_permissions.administrator
+        return app_commands.check(predicate)
+
     async def ensure_guild(self, guild_id: str):
         # ensure we have a record for the guild; also track auto_role
         if guild_id not in self.data:
@@ -127,7 +136,8 @@ class Roles(commands.Cog):
 
     @roles.command(name="create")
     @app_commands.describe(title="Embed title", description="Embed description")
-    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def create(self, interaction: discord.Interaction, title: str, description: str = ""):
         """Create a roles menu message in the current channel."""
         embed = discord.Embed(title=title, description=description, color=0x5865F2)
@@ -140,7 +150,8 @@ class Roles(commands.Cog):
 
     @roles.command(name="add")
     @app_commands.describe(message_id="ID of the menu message", emoji="Emoji to react with", role="Role to assign")
-    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def add(self, interaction: discord.Interaction, message_id: int, emoji: str, role: discord.Role):
         """Add a reaction-role mapping to an existing menu."""
         guild_id = str(interaction.guild_id)
@@ -163,7 +174,8 @@ class Roles(commands.Cog):
 
     @roles.command(name="remove")
     @app_commands.describe(message_id="ID of the menu message", emoji="Emoji to remove")
-    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def remove(self, interaction: discord.Interaction, message_id: int, emoji: str):
         """Remove a mapping from a menu."""
         guild_id = str(interaction.guild_id)
@@ -185,7 +197,8 @@ class Roles(commands.Cog):
 
     @roles.command(name="list")
     @app_commands.describe(message_id="ID of the menu message")
-    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def _list(self, interaction: discord.Interaction, message_id: int):
         """List mappings for a menu message."""
         guild_id = str(interaction.guild_id)
@@ -206,7 +219,8 @@ class Roles(commands.Cog):
 
     @roles.command(name="set_auto")
     @app_commands.describe(role="Role to give new members automatically")
-    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def set_auto(self, interaction: discord.Interaction, role: discord.Role):
         """Set the auto-assign role for new members."""
         guild_id = str(interaction.guild_id)
@@ -216,7 +230,8 @@ class Roles(commands.Cog):
         await interaction.response.send_message(f"✅ Set auto-role to **{role.name}**", ephemeral=True)
 
     @roles.command(name="unset_auto")
-    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.default_permissions(administrator=True)
+    @admin_or_owner_check()
     async def unset_auto(self, interaction: discord.Interaction):
         """Clear the auto-assign role and revert to config value."""
         guild_id = str(interaction.guild_id)
