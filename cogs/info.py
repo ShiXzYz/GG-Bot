@@ -60,67 +60,67 @@ class Info(commands.Cog):
     # RULES COMMAND
     # =========================================================
     @app_commands.command(
-    name="rules",
-    description="Displays the server rules"
-)
-async def rules(self, interaction: discord.Interaction):
-
-    header = discord.Embed(color=EMBED_COLOR)
-    header.set_image(url=RULES_BANNER)
-
-    rules_embed = discord.Embed(
-        title="📜 Group Gathering Rules",
-        description=(
-            "Keep it chill. Respect others. Have fun.\n"
-            "Breaking rules may result in warnings or removal."
-        ),
-        color=EMBED_COLOR
+        name="rules",
+        description="Displays the server rules"
     )
+    async def rules(self, interaction: discord.Interaction):
 
-    rules_embed.set_thumbnail(url=RULES_THUMBNAIL)
+        header = discord.Embed(color=EMBED_COLOR)
+        header.set_image(url=RULES_BANNER)
 
-    # Main rules
-    rules_embed.add_field(
-        name="🤝 Respect Everyone",
-        value=(
-            "• No harassment or bullying\n"
-            "• No hate speech\n"
-            "• Don't start drama"
-        ),
-        inline=False
-    )
+        rules_embed = discord.Embed(
+            title="📜 Group Gathering Rules",
+            description=(
+                "Keep it chill. Respect others. Have fun.\n"
+                "Breaking rules may result in warnings or removal."
+            ),
+            color=EMBED_COLOR
+        )
 
-    rules_embed.add_field(
-        name="💬 Keep Chats Clean",
-        value=(
-            "• No spam or flooding\n"
-            "• Stay on topic\n"
-            "• Use channels correctly"
-        ),
-        inline=False
-    )
+        rules_embed.set_thumbnail(url=RULES_THUMBNAIL)
 
-    rules_embed.add_field(
-        name="🚫 Don't Be Weird",
-        value=(
-            "• No NSFW content\n"
-            "• No scams or malicious links\n"
-            "• No advertising without permission"
-        ),
-        inline=False
-    )
+        # Main rules
+        rules_embed.add_field(
+            name="🤝 Respect Everyone",
+            value=(
+                "• No harassment or bullying\n"
+                "• No hate speech\n"
+                "• Don't start drama"
+            ),
+            inline=False
+        )
 
-    rules_embed.add_field(
-        name="🎤 VC Rules",
-        value=(
-            "• No mic spam\n"
-            "• Don't troll voice chats\n"
-            "• Respect everyone in VC"
-        ),
-        inline=False
-    )
-    
-    rules_embed.add_field(
+        rules_embed.add_field(
+            name="💬 Keep Chats Clean",
+            value=(
+                "• No spam or flooding\n"
+                "• Stay on topic\n"
+                "• Use channels correctly"
+            ),
+            inline=False
+        )
+
+        rules_embed.add_field(
+            name="🚫 Don't Be Weird",
+            value=(
+                "• No NSFW content\n"
+                "• No scams or malicious links\n"
+                "• No advertising without permission"
+            ),
+            inline=False
+        )
+
+        rules_embed.add_field(
+            name="🎤 VC Rules",
+            value=(
+                "• No mic spam\n"
+                "• Don't troll voice chats\n"
+                "• Respect everyone in VC"
+            ),
+            inline=False
+        )
+        
+        rules_embed.add_field(
             name="✨ Final Reminder",
             value=(
                 "Use common sense and help maintain a welcoming community.\n"
@@ -129,15 +129,15 @@ async def rules(self, interaction: discord.Interaction):
             inline=False
         )
 
-    rules_embed.set_image(url=RULES_SECTION_BANNER)
+        rules_embed.set_image(url=RULES_SECTION_BANNER)
 
-    rules_embed.set_footer(
-        text="Group Gathering • Stay respectful"
-    )
+        rules_embed.set_footer(
+            text="Group Gathering • Stay respectful"
+        )
 
-    await interaction.response.send_message(
-        embeds=[header, rules_embed]
-    )
+        await interaction.response.send_message(
+            embeds=[header, rules_embed]
+        )
 
 
 async def setup(bot):
