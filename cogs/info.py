@@ -3,8 +3,8 @@ from discord.ext import commands
 from discord import app_commands
 
 # Replace these with your own rule images when you have them
-RULES_BANNER = "https://via.placeholder.com/800x200.png?text=RULES+IMAGE+PLACEHOLDER"
-RULES_THUMBNAIL = "https://via.placeholder.com/128.png?text=ICON+PLACEHOLDER"
+RULES_BANNER = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/rules_head.jpg?raw=true"
+RULES_THUMBNAIL = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/law_rules.jpg?raw=true"
 
 class Info(commands.Cog):
     def __init__(self, bot):
