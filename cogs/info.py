@@ -64,7 +64,14 @@ class Info(commands.Cog):
         description="Displays the server rules"
     )
     async def rules(self, interaction: discord.Interaction):
+        embeds = self._build_rules_embeds()
+        await interaction.channel.send(embeds=embeds)
+        await interaction.response.send_message(
+            "Rules posted.",
+            ephemeral=True
+        )
 
+    def _build_rules_embeds(self):
         header = discord.Embed(color=EMBED_COLOR)
         header.set_image(url=RULES_BANNER)
 
@@ -83,12 +90,24 @@ class Info(commands.Cog):
 
         # Main rules
         rules_embed.add_field(
+            name="",
+            value="",
+            inline=False
+        )
+
+        rules_embed.add_field(
             name="🤝 Respect Everyone",
             value=(
                 "• No harassment or bullying\n"
                 "• No hate speech\n"
                 "• Don't start drama"
             ),
+            inline=False
+        )
+
+        rules_embed.add_field(
+            name="",
+            value="",
             inline=False
         )
 
@@ -103,12 +122,24 @@ class Info(commands.Cog):
         )
 
         rules_embed.add_field(
+            name="",
+            value="",
+            inline=False
+        )
+
+        rules_embed.add_field(
             name="🚫 Don't Be Weird",
             value=(
                 "• No NSFW content (only in designated channels)\n"
                 "• No scams or malicious links\n"
                 "• No advertising without permission"
             ),
+            inline=False
+        )
+
+        rules_embed.add_field(
+            name="",
+            value="",
             inline=False
         )
 
@@ -121,13 +152,19 @@ class Info(commands.Cog):
             ),
             inline=False
         )
-        
+
+        rules_embed.add_field(
+            name="",
+            value="",
+            inline=False
+        )
+    
         rules_embed.add_field(
             name="✨ Final Reminder",
             value=(
                 "Use common sense and help maintain a welcoming community.\n"
-                "Always talk things out and If you see any issues, let us know!\n"
-                "**Most importantly, have fun and enjoy your time here!**"
+                "Always talk things out and If you see any issues, let us know!\n\n"
+                "**Most of all, have fun and enjoy your time here!**"
             ),
             inline=False
         )
@@ -138,9 +175,12 @@ class Info(commands.Cog):
             text="Group Gathering • Community Rules"
         )
 
-        await interaction.response.send_message(
-            embeds=[header, rules_embed]
-        )
+        return [header, rules_embed]
+
+    @commands.command(name="postrules")
+    async def rules_text(self, ctx: commands.Context):
+        embeds = self._build_rules_embeds()
+        await ctx.send(embeds=embeds)
 
 
 async def setup(bot):
