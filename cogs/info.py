@@ -126,7 +126,8 @@ class Info(commands.Cog):
             name="✨ Final Reminder",
             value=(
                 "Use common sense and help maintain a welcoming community.\n"
-                "Always talk things out and If you see any issues, let us know!"
+                "Always talk things out and If you see any issues, let us know!\n"
+                "**Most importantly, have fun and enjoy your time here!**"
             ),
             inline=False
         )
