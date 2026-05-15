@@ -34,26 +34,46 @@ class Info(commands.Cog):
 
     @app_commands.command(name="rules", description="Displays the server rules")
     async def rules(self, interaction: discord.Interaction):
-        embed = discord.Embed(
-            title="SERVER RULES",
-            description=(
-                "- Be nice!\n"
-                "- Be respectful\n"
-                "- Don't advertise other servers\n"
-                "- Have fun!\n"
-                "- Don't discriminate/bully people\n"
-                "- Don't spam\n"
-                "- Use channels in their appropriate way\n"
-                "- You will get a warning for breaking a rule, 3 strikes and you're gone\n"
-                "- If you say admin abuse, I'm coming over\n"
-                "- a"
-            ),
+        banner = discord.Embed(color=0x5865F2)
+        banner.set_image(url=RULES_BANNER)
+
+        rules_embed = discord.Embed(
+            title="Server Rules",
+            description="Follow these rules to keep the server safe, friendly, and fun for everyone.",
             color=0x5865F2
         )
-        embed.set_thumbnail(url=RULES_THUMBNAIL)
-        embed.set_image(url=RULES_BANNER)
+        rules_embed.set_thumbnail(url=RULES_THUMBNAIL)
+        rules_embed.add_field(
+            name="Community Behavior",
+            value=(
+                "• Be nice!\n"
+                "• Be respectful\n"
+                "• Don't discriminate/bully people"
+            ),
+            inline=False
+        )
+        rules_embed.add_field(
+            name="What Not to Do",
+            value=(
+                "• Don't advertise other servers\n"
+                "• Don't spam\n"
+                "• Use channels in their appropriate way"
+            ),
+            inline=False
+        )
+        rules_embed.add_field(
+            name="Consequences",
+            value=(
+                "• You will get a warning for breaking a rule\n"
+                "• 3 strikes and you're gone\n"
+                "• If you say admin abuse, I'm coming over"
+            ),
+            inline=False
+        )
+        rules_embed.set_footer(text="Server rules are enforced by staff. Please read carefully.")
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=banner)
+        await interaction.followup.send(embed=rules_embed)
 
 async def setup(bot):
     await bot.add_cog(Info(bot))
