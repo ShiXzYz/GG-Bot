@@ -69,10 +69,12 @@ class Info(commands.Cog):
         header.set_image(url=RULES_BANNER)
 
         rules_embed = discord.Embed(
-            title="📜 Group Gathering Rules",
+            title="📜 Group Gathering • Community Guidelines",
             description=(
-                "Keep it chill. Respect others. Have fun.\n"
-                "Breaking rules may result in warnings or removal."
+                "Welcome to **Group Gathering**.\n\n"
+                "Our goal is to create a chill, organized, and enjoyable "
+                "environment for everyone. By being in this server, "
+                "you must follow the guidelines below."
             ),
             color=EMBED_COLOR
         )
@@ -103,7 +105,7 @@ class Info(commands.Cog):
         rules_embed.add_field(
             name="🚫 Don't Be Weird",
             value=(
-                "• No NSFW content\n"
+                "• No NSFW content (only in designated channels)\n"
                 "• No scams or malicious links\n"
                 "• No advertising without permission"
             ),
@@ -114,7 +116,7 @@ class Info(commands.Cog):
             name="🎤 VC Rules",
             value=(
                 "• No mic spam\n"
-                "• Don't troll voice chats\n"
+                "• Don't disturb voice chats\n"
                 "• Respect everyone in VC"
             ),
             inline=False
@@ -124,7 +126,7 @@ class Info(commands.Cog):
             name="✨ Final Reminder",
             value=(
                 "Use common sense and help maintain a welcoming community.\n"
-                "If you see rule-breaking behavior, report it to staff."
+                "Always talk things out and If you see any issues, let us know!"
             ),
             inline=False
         )
@@ -132,7 +134,7 @@ class Info(commands.Cog):
         rules_embed.set_image(url=RULES_SECTION_BANNER)
 
         rules_embed.set_footer(
-            text="Group Gathering • Stay respectful"
+            text="Group Gathering • Community Rules"
         )
 
         await interaction.response.send_message(
