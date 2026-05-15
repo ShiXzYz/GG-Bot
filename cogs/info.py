@@ -2,6 +2,10 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+# Replace these with your own rule images when you have them
+RULES_BANNER = "https://via.placeholder.com/800x200.png?text=RULES+IMAGE+PLACEHOLDER"
+RULES_THUMBNAIL = "https://via.placeholder.com/128.png?text=ICON+PLACEHOLDER"
+
 class Info(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -26,6 +30,29 @@ class Info(commands.Cog):
         if guild.icon:
             embed.set_thumbnail(url=guild.icon.url)
         
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="rules", description="Displays the server rules")
+    async def rules(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="SERVER RULES",
+            description=(
+                "- Be nice!\n"
+                "- Be respectful\n"
+                "- Don't advertise other servers\n"
+                "- Have fun!\n"
+                "- Don't discriminate/bully people\n"
+                "- Don't spam\n"
+                "- Use channels in their appropriate way\n"
+                "- You will get a warning for breaking a rule, 3 strikes and you're gone\n"
+                "- If you say admin abuse, I'm coming over\n"
+                "- a"
+            ),
+            color=0x5865F2
+        )
+        embed.set_thumbnail(url=RULES_THUMBNAIL)
+        embed.set_image(url=RULES_BANNER)
+
         await interaction.response.send_message(embed=embed)
 
 async def setup(bot):
