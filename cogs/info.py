@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 
 RULES_BANNER = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/rules_head.jpg?raw=true"
-RULES_SECTION_BANNER = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/banner.jpg?raw=true"
+RULES_SECTION_BANNER = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/banner.png?raw=true"
 RULES_THUMBNAIL = "https://github.com/ShiXzYz/GG-Bot/blob/main/images/rules_law.jpg?raw=true"
 
 EMBED_COLOR = 0x8B5CF6  # Purple theme matching your branding
@@ -60,94 +60,67 @@ class Info(commands.Cog):
     # RULES COMMAND
     # =========================================================
     @app_commands.command(
-        name="rules",
-        description="Displays the server rules"
+    name="rules",
+    description="Displays the server rules"
+)
+async def rules(self, interaction: discord.Interaction):
+
+    header = discord.Embed(color=EMBED_COLOR)
+    header.set_image(url=RULES_BANNER)
+
+    rules_embed = discord.Embed(
+        title="📜 Group Gathering Rules",
+        description=(
+            "Keep it chill. Respect others. Have fun.\n"
+            "Breaking rules may result in warnings or removal."
+        ),
+        color=EMBED_COLOR
     )
-    async def rules(self, interaction: discord.Interaction):
 
-        # =========================
-        # TOP HEADER BANNER
-        # =========================
-        header = discord.Embed(color=EMBED_COLOR)
-        header.set_image(url=RULES_BANNER)
+    rules_embed.set_thumbnail(url=RULES_THUMBNAIL)
 
-        # =========================
-        # MAIN RULES EMBED
-        # =========================
-        rules_embed = discord.Embed(
-            title="📜 Group Gathering • Community Guidelines",
-            description=(
-                "Welcome to **Group Gathering**.\n\n"
-                "Our goal is to create a respectful, organized, and enjoyable "
-                "environment for everyone. By participating in this server, "
-                "you agree to follow the guidelines below."
-            ),
-            color=EMBED_COLOR
-        )
+    # Main rules
+    rules_embed.add_field(
+        name="🤝 Respect Everyone",
+        value=(
+            "• No harassment or bullying\n"
+            "• No hate speech\n"
+            "• Don't start drama"
+        ),
+        inline=False
+    )
 
-        rules_embed.set_thumbnail(url=RULES_THUMBNAIL)
-        rules_embed.set_image(url=RULES_SECTION_BANNER)
+    rules_embed.add_field(
+        name="💬 Keep Chats Clean",
+        value=(
+            "• No spam or flooding\n"
+            "• Stay on topic\n"
+            "• Use channels correctly"
+        ),
+        inline=False
+    )
 
-        # =========================
-        # RULE SECTIONS
-        # =========================
+    rules_embed.add_field(
+        name="🚫 Don't Be Weird",
+        value=(
+            "• No NSFW content\n"
+            "• No scams or malicious links\n"
+            "• No advertising without permission"
+        ),
+        inline=False
+    )
 
-        rules_embed.add_field(
-            name="🤝 Respect & Conduct",
-            value=(
-                "• Treat all members with respect.\n"
-                "• Harassment, bullying, or discrimination is prohibited.\n"
-                "• Excessive toxicity or drama is not tolerated.\n"
-                "• Keep conversations civil and mature."
-            ),
-            inline=False
-        )
-
-        rules_embed.add_field(
-            name="💬 Chat Guidelines",
-            value=(
-                "• Use channels for their intended purpose.\n"
-                "• Avoid spam, flooding, or excessive caps.\n"
-                "• Keep discussions relevant to the topic.\n"
-                "• Do not intentionally disrupt conversations."
-            ),
-            inline=False
-        )
-
-        rules_embed.add_field(
-            name="🚫 Prohibited Content",
-            value=(
-                "• No NSFW, hateful, or illegal content.\n"
-                "• No scams, phishing, or malicious links.\n"
-                "• No advertising or self-promotion without permission.\n"
-                "• No impersonation of staff or members."
-            ),
-            inline=False
-        )
-
-        rules_embed.add_field(
-            name="🎤 Voice Channel Rules",
-            value=(
-                "• Avoid mic spam or disruptive audio.\n"
-                "• Respect others in voice chats.\n"
-                "• Soundboards/music should not disturb channels.\n"
-                "• Do not intentionally troll or ear-rape users."
-            ),
-            inline=False
-        )
-
-        rules_embed.add_field(
-            name="🛡️ Staff & Enforcement",
-            value=(
-                "• Staff decisions should be respected.\n"
-                "• Punishments may include warnings, mutes, or bans.\n"
-                "• Severe violations may result in immediate removal.\n"
-                "• Appeals can be discussed respectfully with staff."
-            ),
-            inline=False
-        )
-
-        rules_embed.add_field(
+    rules_embed.add_field(
+        name="🎤 VC Rules",
+        value=(
+            "• No mic spam\n"
+            "• Don't troll voice chats\n"
+            "• Respect everyone in VC"
+        ),
+        inline=False
+    )
+    
+    rules_embed.add_field(
             name="✨ Final Reminder",
             value=(
                 "Use common sense and help maintain a welcoming community.\n"
@@ -156,14 +129,15 @@ class Info(commands.Cog):
             inline=False
         )
 
-        rules_embed.set_footer(
-            text="Group Gathering • Community Rules",
-            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
-        )
+    rules_embed.set_image(url=RULES_SECTION_BANNER)
 
-        await interaction.response.send_message(
-            embeds=[header, rules_embed]
-        )
+    rules_embed.set_footer(
+        text="Group Gathering • Stay respectful"
+    )
+
+    await interaction.response.send_message(
+        embeds=[header, rules_embed]
+    )
 
 
 async def setup(bot):
