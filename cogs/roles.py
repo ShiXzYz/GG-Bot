@@ -125,7 +125,7 @@ class Roles(commands.Cog):
 
         # Banner Image
         embed.set_image(
-            url="https://i.imgur.com/AfFp7pu.png"
+            url="https://github.com/ShiXzYz/GG-Bot/blob/main/images/role_banner.png?raw=true"
         )
 
         # Server Icon Thumbnail
@@ -153,7 +153,7 @@ class Roles(commands.Cog):
 
             embed.add_field(
                 name="🎮 **Available Roles**",
-                value="\n".join(role_lines),
+                value="\n\n" + "\n\n".join(role_lines) + "\n\n",
                 inline=False
             )
 
@@ -164,6 +164,8 @@ class Roles(commands.Cog):
                 value="No roles configured yet.",
                 inline=False
             )
+            
+        embed.add_field(name="\u200b", value="\u200b", inline=False)
 
         # Info Section
         embed.add_field(

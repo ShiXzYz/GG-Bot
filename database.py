@@ -49,6 +49,15 @@ def init_db():
             PRIMARY KEY (guild_id, message_id)
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS roles_mappings (
+            guild_id TEXT NOT NULL,
+            message_id TEXT NOT NULL,
+            emoji TEXT NOT NULL,
+            role_id TEXT NOT NULL,
+            PRIMARY KEY (guild_id, message_id, emoji)
+        )
+    ''')
     cursor.execute("PRAGMA table_info(roles_menus)")
     existing_columns = [row[1] for row in cursor.fetchall()]
     if "title" not in existing_columns:
@@ -184,6 +193,20 @@ def load_roles_data():
             msg_entry["description"] = description
         data[guild_id]["messages"][str(message_id)] = msg_entry
 
+    cursor.execute('SELECT guild_id, message_id, emoji, role_id FROM roles_mappings')
+    for row in cursor.fetchall():
+        guild_id, message_id, emoji, role_id = row
+        try:
+            role_id = int(role_id)
+        except Exception:
+            pass
+        if guild_id not in data:
+            data[guild_id] = {"messages": {}, "auto_role": None}
+        message_id = str(message_id)
+        if message_id not in data[guild_id]["messages"]:
+            data[guild_id]["messages"][message_id] = {"channel_id": None, "mappings": {}}
+        data[guild_id]["messages"][message_id]["mappings"][emoji] = role_id
+
     conn.close()
     return data
 
@@ -193,6 +216,7 @@ def save_roles_data(data):
 
     cursor.execute('DELETE FROM roles_auto')
     cursor.execute('DELETE FROM roles_menus')
+    cursor.execute('DELETE FROM roles_mappings')
 
     for guild_id, guild_data in data.items():
         if "auto_role" in guild_data and guild_data["auto_role"]:
@@ -202,6 +226,9 @@ def save_roles_data(data):
         for message_id, msg_data in guild_data.get("messages", {}).items():
             cursor.execute('INSERT INTO roles_menus (guild_id, message_id, channel_id, title, description) VALUES (?, ?, ?, ?, ?)',
                            (guild_id, message_id, msg_data["channel_id"], msg_data.get("title"), msg_data.get("description")))
+            for emoji, role_id in msg_data.get("mappings", {}).items():
+                cursor.execute('INSERT INTO roles_mappings (guild_id, message_id, emoji, role_id) VALUES (?, ?, ?, ?)',
+                               (guild_id, message_id, emoji, role_id))
 
     conn.commit()
     conn.close()
