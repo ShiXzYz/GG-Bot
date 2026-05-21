@@ -44,9 +44,17 @@ def init_db():
             guild_id TEXT NOT NULL,
             message_id TEXT NOT NULL,
             channel_id TEXT NOT NULL,
+            title TEXT,
+            description TEXT,
             PRIMARY KEY (guild_id, message_id)
         )
     ''')
+    cursor.execute("PRAGMA table_info(roles_menus)")
+    existing_columns = [row[1] for row in cursor.fetchall()]
+    if "title" not in existing_columns:
+        cursor.execute("ALTER TABLE roles_menus ADD COLUMN title TEXT")
+    if "description" not in existing_columns:
+        cursor.execute("ALTER TABLE roles_menus ADD COLUMN description TEXT")
 
     # Status meta
     cursor.execute('''
@@ -147,9 +155,18 @@ def load_roles_data():
         if guild_id not in data:
             data[guild_id] = {"messages": {}, "auto_role": role_id}
 
-    cursor.execute('SELECT guild_id, message_id, channel_id FROM roles_menus')
+    cursor.execute('PRAGMA table_info(roles_menus)')
+    cols = [row[1] for row in cursor.fetchall()]
+    select_cols = ["guild_id", "message_id", "channel_id"]
+    if "title" in cols:
+        select_cols.append("title")
+    if "description" in cols:
+        select_cols.append("description")
+    cursor.execute(f'SELECT {", ".join(select_cols)} FROM roles_menus')
     for row in cursor.fetchall():
-        guild_id, message_id, channel_id = row
+        guild_id, message_id, channel_id = row[:3]
+        title = row[3] if len(row) > 3 else None
+        description = row[4] if len(row) > 4 else None
         try:
             message_id = int(message_id)
         except Exception:
@@ -160,8 +177,12 @@ def load_roles_data():
             pass
         if guild_id not in data:
             data[guild_id] = {"messages": {}, "auto_role": None}
-        # store message_id as string key for consistency with how other code uses it
-        data[guild_id]["messages"][str(message_id)] = {"channel_id": channel_id, "mappings": {}}
+        msg_entry = {"channel_id": channel_id, "mappings": {}}
+        if title is not None:
+            msg_entry["title"] = title
+        if description is not None:
+            msg_entry["description"] = description
+        data[guild_id]["messages"][str(message_id)] = msg_entry
 
     conn.close()
     return data
@@ -179,8 +200,8 @@ def save_roles_data(data):
                            (guild_id, guild_data["auto_role"]))
 
         for message_id, msg_data in guild_data.get("messages", {}).items():
-            cursor.execute('INSERT INTO roles_menus (guild_id, message_id, channel_id) VALUES (?, ?, ?)',
-                           (guild_id, message_id, msg_data["channel_id"]))
+            cursor.execute('INSERT INTO roles_menus (guild_id, message_id, channel_id, title, description) VALUES (?, ?, ?, ?, ?)',
+                           (guild_id, message_id, msg_data["channel_id"], msg_data.get("title"), msg_data.get("description")))
 
     conn.commit()
     conn.close()
