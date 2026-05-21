@@ -152,11 +152,15 @@ class Roles(commands.Cog):
     @app_commands.describe(message_id="ID of the menu message", emoji="Emoji to react with", role="Role to assign")
     @app_commands.default_permissions(administrator=True)
     @admin_or_owner_check()
-    async def add(self, interaction: discord.Interaction, message_id: int, emoji: str, role: discord.Role):
+    async def add(self, interaction: discord.Interaction, message_id: str, emoji: str, role: discord.Role):
         """Add a reaction-role mapping to an existing menu."""
+        message_id = message_id.strip()
+        if not message_id.isdigit():
+            await interaction.response.send_message("Message ID must be a numeric Discord message ID.", ephemeral=True)
+            return
         guild_id = str(interaction.guild_id)
         await self.ensure_guild(guild_id)
-        msg_entry = self.data[guild_id]["messages"].get(str(message_id))
+        msg_entry = self.data[guild_id]["messages"].get(message_id)
         if not msg_entry:
             await interaction.response.send_message("Message ID not found for this server.", ephemeral=True)
             return
@@ -166,7 +170,7 @@ class Roles(commands.Cog):
         # add reaction to the message
         channel = self.bot.get_channel(msg_entry["channel_id"]) or await self.bot.fetch_channel(msg_entry["channel_id"])
         try:
-            msg = await channel.fetch_message(message_id)
+            msg = await channel.fetch_message(int(message_id))
             await msg.add_reaction(emoji)
         except Exception:
             pass
@@ -176,11 +180,15 @@ class Roles(commands.Cog):
     @app_commands.describe(message_id="ID of the menu message", emoji="Emoji to remove")
     @app_commands.default_permissions(administrator=True)
     @admin_or_owner_check()
-    async def remove(self, interaction: discord.Interaction, message_id: int, emoji: str):
+    async def remove(self, interaction: discord.Interaction, message_id: str, emoji: str):
         """Remove a mapping from a menu."""
+        message_id = message_id.strip()
+        if not message_id.isdigit():
+            await interaction.response.send_message("Message ID must be a numeric Discord message ID.", ephemeral=True)
+            return
         guild_id = str(interaction.guild_id)
         await self.ensure_guild(guild_id)
-        msg_entry = self.data[guild_id]["messages"].get(str(message_id))
+        msg_entry = self.data[guild_id]["messages"].get(message_id)
         if not msg_entry or emoji not in msg_entry["mappings"]:
             await interaction.response.send_message("Mapping not found.", ephemeral=True)
             return
@@ -189,7 +197,7 @@ class Roles(commands.Cog):
         # remove reaction from message
         try:
             channel = self.bot.get_channel(msg_entry["channel_id"]) or await self.bot.fetch_channel(msg_entry["channel_id"])
-            msg = await channel.fetch_message(message_id)
+            msg = await channel.fetch_message(int(message_id))
             await msg.clear_reaction(emoji)
         except Exception:
             pass
@@ -199,11 +207,15 @@ class Roles(commands.Cog):
     @app_commands.describe(message_id="ID of the menu message")
     @app_commands.default_permissions(administrator=True)
     @admin_or_owner_check()
-    async def _list(self, interaction: discord.Interaction, message_id: int):
+    async def _list(self, interaction: discord.Interaction, message_id: str):
         """List mappings for a menu message."""
+        message_id = message_id.strip()
+        if not message_id.isdigit():
+            await interaction.response.send_message("Message ID must be a numeric Discord message ID.", ephemeral=True)
+            return
         guild_id = str(interaction.guild_id)
         await self.ensure_guild(guild_id)
-        msg_entry = self.data[guild_id]["messages"].get(str(message_id))
+        msg_entry = self.data[guild_id]["messages"].get(message_id)
         if not msg_entry:
             await interaction.response.send_message("Message ID not found.", ephemeral=True)
             return
