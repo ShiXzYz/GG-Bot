@@ -93,6 +93,15 @@ def init_db():
         )
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS money_accounts (
+            guild_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            balance INTEGER DEFAULT 0,
+            PRIMARY KEY (guild_id, user_id)
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -330,6 +339,39 @@ def save_vc_points(data):
         for user_id, points in users.items():
             cursor.execute('INSERT INTO vc_points (guild_id, user_id, points) VALUES (?, ?, ?)',
                            (guild_id, user_id, points))
+
+    conn.commit()
+    conn.close()
+
+# Money functions
+
+def load_money_data():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    data = {}
+    cursor.execute('SELECT guild_id, user_id, balance FROM money_accounts')
+    for row in cursor.fetchall():
+        guild_id, user_id, balance = row
+        if guild_id not in data:
+            data[guild_id] = {}
+        data[guild_id][user_id] = balance
+
+    conn.close()
+    return data
+
+
+def save_money_data(data):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('DELETE FROM money_accounts')
+    for guild_id, users in data.items():
+        for user_id, balance in users.items():
+            cursor.execute(
+                'INSERT INTO money_accounts (guild_id, user_id, balance) VALUES (?, ?, ?)',
+                (guild_id, user_id, balance)
+            )
 
     conn.commit()
     conn.close()

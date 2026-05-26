@@ -120,7 +120,7 @@ class Roles(commands.Cog):
                 "## Select Your Roles\n"
                 "React below to customize your access."
             ),
-            color=0x5865F2
+            color=0xC71585
         )
 
         # Banner Image
