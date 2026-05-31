@@ -335,20 +335,69 @@ class Economy(commands.Cog):
         color = (200, 30, 30) if suit in ("♥", "♦") else (20, 20, 20)
         return value, suit, color
 
+    def _draw_suit_shape(self, draw, cx: int, cy: int, r: int, suit: str, color: tuple):
+        """Draw a suit symbol using PIL geometry — no font required."""
+        cx, cy, r = int(cx), int(cy), int(r)
+
+        if suit == "♥":
+            cr = max(1, r * 55 // 100)
+            lx, ly = cx - r // 2, cy - r // 5
+            rx, ry = cx + r // 2, cy - r // 5
+            draw.ellipse([lx - cr, ly - cr, lx + cr, ly + cr], fill=color)
+            draw.ellipse([rx - cr, ry - cr, rx + cr, ry + cr], fill=color)
+            draw.polygon([cx - r * 9 // 10, cy - r // 5,
+                          cx + r * 9 // 10, cy - r // 5,
+                          cx, cy + r], fill=color)
+
+        elif suit == "♦":
+            draw.polygon([cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy], fill=color)
+
+        elif suit == "♠":
+            cr = max(1, r * 45 // 100)
+            lx, ly = cx - r // 2, cy + r // 6
+            rx, ry = cx + r // 2, cy + r // 6
+            # Upward triangle
+            draw.polygon([cx - r * 9 // 10, cy + r // 6,
+                          cx + r * 9 // 10, cy + r // 6,
+                          cx, cy - r], fill=color)
+            # Two side lobes
+            draw.ellipse([lx - cr, ly - cr, lx + cr, ly + cr], fill=color)
+            draw.ellipse([rx - cr, ry - cr, rx + cr, ry + cr], fill=color)
+            # Stem + base
+            sw = max(1, r // 5)
+            draw.rectangle([cx - sw, cy + r // 2, cx + sw, cy + r], fill=color)
+            draw.rectangle([cx - r // 2, cy + r - sw * 2, cx + r // 2, cy + r], fill=color)
+
+        elif suit == "♣":
+            cr = max(1, r * 38 // 100)
+            tc  = (cx,              cy - r + cr)
+            blc = (cx - r * 45 // 100, cy + r // 6)
+            brc = (cx + r * 45 // 100, cy + r // 6)
+            for ccx, ccy in (tc, blc, brc):
+                draw.ellipse([ccx - cr, ccy - cr, ccx + cr, ccy + cr], fill=color)
+            # Fill the triangle between the three circle centres
+            draw.polygon([tc[0], tc[1], blc[0], blc[1], brc[0], brc[1]], fill=color)
+            sw = max(1, r // 5)
+            draw.rectangle([cx - sw, blc[1] + cr, cx + sw, cy + r], fill=color)
+            draw.rectangle([cx - r // 2, cy + r - sw * 2, cx + r // 2, cy + r], fill=color)
+
     def _draw_card_face(self, draw, x, y, w, h, value, suit, color, fnt_sm, fnt_lg):
+        # Shadow + white card body
         draw.rectangle([x + 5, y + 5, x + w + 5, y + h + 5], fill=(10, 70, 30))
         draw.rectangle([x, y, x + w, y + h], fill=(255, 255, 255), outline=(195, 195, 195), width=2)
 
-        draw.text((x + 7, y + 5), value, fill=color, font=fnt_sm)
-        _, vh = self._tsz(draw, value, fnt_sm)
-        draw.text((x + 7, y + 5 + vh + 2), suit, fill=color, font=fnt_sm)
+        vw, vh = self._tsz(draw, value, fnt_sm)
 
-        sw, sh = self._tsz(draw, suit, fnt_lg)
-        draw.text((x + w // 2 - sw // 2, y + h // 2 - sh // 2), suit, fill=color, font=fnt_lg)
+        # Top-left: value text + small suit shape
+        draw.text((x + 6, y + 5), value, fill=color, font=fnt_sm)
+        self._draw_suit_shape(draw, x + 6 + vw // 2, y + 5 + vh + 9, 7, suit, color)
 
-        vw, _ = self._tsz(draw, value, fnt_sm)
-        draw.text((x + w - 7 - vw, y + h - 5 - vh - 2),            suit,  fill=color, font=fnt_sm)
-        draw.text((x + w - 7 - vw, y + h - 5 - vh - 2 - vh - 2),   value, fill=color, font=fnt_sm)
+        # Centre: large suit shape
+        self._draw_suit_shape(draw, x + w // 2, y + h // 2, 22, suit, color)
+
+        # Bottom-right: value text + small suit shape (above it)
+        draw.text((x + w - 6 - vw, y + h - 5 - vh), value, fill=color, font=fnt_sm)
+        self._draw_suit_shape(draw, x + w - 6 - vw // 2, y + h - 5 - vh - 9, 7, suit, color)
 
     def _draw_card_back(self, draw, x, y, w, h):
         draw.rectangle([x + 5, y + 5, x + w + 5, y + h + 5], fill=(10, 70, 30))
@@ -415,13 +464,137 @@ class Economy(commands.Cog):
         draw.arc([cx - r + 14, cy - r + 14, cx + r - 14, cy + r - 14], start=210, end=330, fill=outline, width=7)
 
         fnt = self._load_font(72)
-        tw, th = self._tsz(draw, letter, fnt)
-        draw.text((cx - tw // 2, cy - th // 2), letter, fill=text_c, font=fnt)
+        bb = draw.textbbox((0, 0), letter, font=fnt)
+        draw.text((cx - (bb[0] + bb[2]) // 2, cy - (bb[1] + bb[3]) // 2), letter, fill=text_c, font=fnt)
 
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         buf.seek(0)
         return discord.File(buf, filename="coin.png")
+
+    def _draw_slot_symbol_large(self, draw, cx: int, cy: int, symbol: str, fnt):
+        """Draw a large decorative slot symbol centred at (cx, cy) using PIL geometry."""
+        cx, cy = int(cx), int(cy)
+        R = 46
+
+        if symbol == "🍒":
+            cr = 17
+            draw.ellipse([cx-24-cr, cy+6-cr, cx-24+cr, cy+6+cr], fill=(210, 35, 35), outline=(255, 90, 90), width=2)
+            draw.ellipse([cx+8-cr,  cy+10-cr, cx+8+cr,  cy+10+cr], fill=(185, 25, 25), outline=(245, 75, 75), width=2)
+            mx, my = cx - 2, cy - 18
+            draw.line([cx-24, cy+6-cr, mx, my], fill=(55, 165, 55), width=3)
+            draw.line([cx+8,  cy+10-cr, mx, my], fill=(55, 165, 55), width=3)
+            draw.line([mx, my, mx, cy - R + 4], fill=(55, 165, 55), width=3)
+            draw.ellipse([mx, cy-R, mx+18, cy-R+12], fill=(45, 170, 45))
+
+        elif symbol == "🍋":
+            draw.ellipse([cx-R+4, cy-26, cx+R-4, cy+26], fill=(230, 215, 35), outline=(255, 242, 80), width=2)
+            draw.ellipse([cx-R+2, cy-9, cx-R+18, cy+9], fill=(218, 200, 22))
+            draw.ellipse([cx+R-18, cy-9, cx+R-2, cy+9], fill=(218, 200, 22))
+            draw.ellipse([cx-22, cy-16, cx-6, cy-5], fill=(255, 252, 170))
+
+        elif symbol == "🍊":
+            draw.ellipse([cx-R+2, cy-R+2, cx+R-2, cy+R-2], fill=(235, 135, 30), outline=(255, 168, 60), width=2)
+            draw.ellipse([cx-22, cy-26, cx-6, cy-14], fill=(255, 185, 85))
+            draw.rectangle([cx-4, cy-R+2, cx+4, cy-R+14], fill=(55, 165, 45))
+            draw.ellipse([cx-8, cy-R+10, cx+8, cy-R+22], fill=(55, 165, 45))
+
+        elif symbol == "🍇":
+            gcr = 14
+            gc, go = (120, 40, 175), (165, 80, 220)
+            for gx, gy in [(cx, cy-22), (cx-18, cy-5), (cx+18, cy-5),
+                           (cx-28, cy+14), (cx, cy+14), (cx+28, cy+14)]:
+                draw.ellipse([gx-gcr, gy-gcr, gx+gcr, gy+gcr], fill=gc, outline=go, width=1)
+            draw.line([cx, cy-22-gcr, cx, cy-R+6], fill=(75, 130, 40), width=3)
+            draw.ellipse([cx+2, cy-R+2, cx+18, cy-R+14], fill=(50, 155, 40))
+
+        elif symbol == "🔔":
+            gc, go = (215, 180, 35), (245, 215, 80)
+            draw.polygon([cx-18, cy-22, cx+18, cy-22, cx+36, cy+28, cx-36, cy+28],
+                         fill=gc, outline=go, width=2)
+            draw.ellipse([cx-20, cy-36, cx+20, cy-18], fill=gc, outline=go, width=2)
+            draw.rectangle([cx-5, cy-R+2, cx+5, cy-R+14], fill=(155, 130, 20))
+            draw.ellipse([cx-8, cy+22, cx+8, cy+R-4], fill=(175, 148, 22))
+
+        elif symbol == "⭐":
+            pts = []
+            for i in range(10):
+                r = (R - 2) if i % 2 == 0 else (R - 2) // 2 + 6
+                angle = math.pi / 2 + i * math.pi / 5
+                pts.append(int(cx + r * math.cos(angle)))
+                pts.append(int(cy - r * math.sin(angle)))
+            draw.polygon(pts, fill=(255, 215, 0), outline=(255, 242, 80), width=2)
+            draw.ellipse([cx-10, cy-10, cx+10, cy+10], fill=(255, 248, 140))
+
+        elif symbol == "💎":
+            dc, do = (70, 185, 235), (175, 235, 255)
+            draw.polygon([cx, cy-R, cx+R-6, cy-8, cx, cy+R, cx-R+6, cy-8],
+                         fill=dc, outline=do, width=2)
+            draw.line([cx, cy-R, cx+R-6, cy-8], fill=do, width=2)
+            draw.line([cx, cy-R, cx-R+6, cy-8], fill=do, width=2)
+            draw.line([cx+R-6, cy-8, cx, cy+R], fill=(140, 215, 245), width=1)
+            draw.line([cx-R+6, cy-8, cx, cy+R], fill=(140, 215, 245), width=1)
+            draw.polygon([cx, cy-R+8, cx+14, cy-6, cx-14, cy-6], fill=(155, 228, 255))
+
+        elif symbol == "🎰":
+            bc, bo = (195, 158, 30), (235, 200, 65)
+            draw.rectangle([cx-R+6, cy-26, cx+R-6, cy+26], fill=bc, outline=bo, width=3)
+            draw.rectangle([cx-R+14, cy-18, cx+R-14, cy+18], outline=(245, 215, 80), width=1)
+            bb = draw.textbbox((0, 0), "BAR", font=fnt)
+            draw.text((cx-(bb[0]+bb[2])//2, cy-(bb[1]+bb[3])//2), "BAR", fill=(255, 242, 100), font=fnt)
+
+    def generate_slots_image(self, reel: list) -> discord.File:
+        REEL_W, REEL_H = 130, 130
+        REEL_GAP = 16
+        PAD_X    = 32
+        PAD_Y    = 18
+        HDR_H    = 50
+        FTR_H    = 36
+
+        W = 3 * REEL_W + 2 * REEL_GAP + 2 * PAD_X
+        H = HDR_H + PAD_Y + REEL_H + PAD_Y + FTR_H
+
+        img  = Image.new("RGB", (W, H), color=(33, 33, 40))
+        draw = ImageDraw.Draw(img)
+
+        fnt_hdr = self._load_font(22)
+        fnt_sym = self._load_font(20)
+
+        # Outer frame (double border)
+        draw.rectangle([0, 0, W-1, H-1], outline=(175, 148, 42), width=4)
+        draw.rectangle([4, 4, W-5, H-5], outline=(118, 96, 24), width=2)
+
+        # Header bar
+        draw.rectangle([4, 4, W-5, 4+HDR_H], fill=(48, 40, 10))
+        title = "SLOT  MACHINE"
+        bb = draw.textbbox((0, 0), title, font=fnt_hdr)
+        draw.text((W//2 - (bb[0]+bb[2])//2, 4+HDR_H//2 - (bb[1]+bb[3])//2),
+                  title, fill=(225, 195, 50), font=fnt_hdr)
+        # Gold accent dots
+        for dx in (18, 32):
+            for x_ in (dx, W - dx):
+                draw.ellipse([x_-6, 4+HDR_H//2-6, x_+6, 4+HDR_H//2+6], fill=(210, 178, 35))
+
+        # Footer bar
+        fy = H - FTR_H - 4
+        draw.rectangle([4, fy, W-5, H-5], fill=(38, 32, 8))
+
+        # Reel windows + symbols
+        ry = HDR_H + PAD_Y
+        for i, symbol in enumerate(reel):
+            rx = PAD_X + i * (REEL_W + REEL_GAP)
+            draw.rectangle([rx, ry, rx+REEL_W, ry+REEL_H], fill=(20, 20, 26), outline=(145, 120, 35), width=3)
+            self._draw_slot_symbol_large(draw, rx + REEL_W//2, ry + REEL_H//2, symbol, fnt_sym)
+
+        # Centre payline marker (thin red lines on each side)
+        win_y = ry + REEL_H // 2
+        for x1, x2 in ((PAD_X-10, PAD_X-3), (W-PAD_X+3, W-PAD_X+10)):
+            draw.line([x1, win_y, x2, win_y], fill=(210, 45, 45), width=3)
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return discord.File(buf, filename="slots.png")
 
     # ── commands ──────────────────────────────────────────────────────────────
 
@@ -561,19 +734,18 @@ class Economy(commands.Cog):
             color        = LOSS_COLOR
             title        = "🎰 Slots — Miss"
 
-        updated = self.add_balance(guild_id, user_id, payout)
+        updated    = self.add_balance(guild_id, user_id, payout)
+        slots_file = self.generate_slots_image(reel)
 
-        # Slot display uses Discord's own emoji rendering — no PIL needed
-        reel_display = f"> {reel[0]}  **|**  {reel[1]}  **|**  {reel[2]}"
-
-        embed = self.build_embed(title, reel_display, color=color)
+        embed = self.build_embed(title, color=color)
         embed.add_field(name="Result",  value=result_label, inline=False)
         if payout > 0:
             embed.add_field(name="Winnings", value=f"+{self.format_money(payout)}", inline=True)
         else:
             embed.add_field(name="Lost",     value=f"−{self.format_money(abs(payout))}", inline=True)
         embed.add_field(name="Balance", value=f"**{self.format_money(updated)}**", inline=True)
-        await interaction.response.send_message(embed=embed)
+        embed.set_image(url="attachment://slots.png")
+        await interaction.response.send_message(embed=embed, file=slots_file)
 
     @money.command(name="blackjack", description="Play an interactive round of blackjack")
     @app_commands.describe(amount="Amount to wager")
