@@ -1,3 +1,4 @@
+import asyncio
 import math
 import discord
 from discord.ext import commands
@@ -228,6 +229,111 @@ class BlackjackView(discord.ui.View):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Interactive Slots View
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SlotsView(discord.ui.View):
+
+    def __init__(self, cog: "Economy", guild_id: str, user_id: str, bet: int):
+        super().__init__(timeout=120)
+        self.cog      = cog
+        self.guild_id = guild_id
+        self.user_id  = user_id
+        self.bet      = bet
+        self.spinning = False
+        self.message: discord.Message | None = None
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != self.user_id:
+            await interaction.response.send_message("This isn't your game.", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
+
+    @discord.ui.button(label="🎰  Spin!", style=discord.ButtonStyle.success)
+    async def spin(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.spinning:
+            await interaction.response.defer()
+            return
+        self.spinning = True
+        button.disabled = True
+        button.label = "Spinning…"
+        await interaction.response.defer()
+
+        # Pre-determine the final reel
+        final_reel = [random.choice(SLOT_SYMBOLS) for _ in range(3)]
+
+        # Build animation frames: random noise → settle reel 0 → reel 1 → reel 2
+        frames: list[list[str]] = []
+        for _ in range(4):
+            frames.append([random.choice(SLOT_SYMBOLS) for _ in range(3)])
+        # Settle each reel one at a time
+        frames.append([final_reel[0], random.choice(SLOT_SYMBOLS), random.choice(SLOT_SYMBOLS)])
+        frames.append([final_reel[0], final_reel[1], random.choice(SLOT_SYMBOLS)])
+        frames.append(final_reel)
+
+        for frame in frames[:-1]:
+            f = self.cog.generate_slots_image(frame, spinning=True)
+            embed = self._spinning_embed()
+            await interaction.edit_original_response(
+                embed=embed, attachments=[f], view=self
+            )
+            await asyncio.sleep(0.55)
+
+        # Final frame
+        reel   = final_reel
+        unique = len(set(reel))
+        if unique == 1:
+            net_change   = self.bet * 5
+            display_val  = f"+{self.cog.format_money(net_change)}"
+            result_label = "🎉 **JACKPOT!** — Three of a kind!"
+            color        = JACKPOT_COLOR
+            title        = "🎰 Slots — Jackpot!"
+        elif unique == 2:
+            net_change   = self.bet * 2
+            display_val  = f"+{self.cog.format_money(net_change)}"
+            result_label = "✨ **Nice!** — Two of a kind"
+            color        = WIN_COLOR
+            title        = "🎰 Slots — Win!"
+        else:
+            net_change   = -self.bet
+            display_val  = f"−{self.cog.format_money(self.bet)}"
+            result_label = "No match"
+            color        = LOSS_COLOR
+            title        = "🎰 Slots — Miss"
+
+        updated    = self.cog.add_balance(self.guild_id, self.user_id, net_change)
+        slots_file = self.cog.generate_slots_image(reel, spinning=False)
+
+        field_name = "Winnings" if net_change > 0 else "Lost"
+        embed = self.cog.build_embed(title, color=color)
+        embed.add_field(name="Result",   value=result_label,                             inline=False)
+        embed.add_field(name=field_name, value=display_val,                              inline=True)
+        embed.add_field(name="Balance",  value=f"**{self.cog.format_money(updated)}**",  inline=True)
+        embed.set_image(url="attachment://slots.png")
+
+        self.clear_items()
+        await interaction.edit_original_response(
+            embed=embed, attachments=[slots_file], view=self
+        )
+        self.stop()
+
+    def _spinning_embed(self) -> discord.Embed:
+        embed = discord.Embed(title="🎰 Slots — Spinning…", color=EMBED_COLOR)
+        embed.add_field(name="Bet", value=self.cog.format_money(self.bet), inline=True)
+        embed.set_image(url="attachment://slots.png")
+        return embed
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Economy Cog
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -340,13 +446,13 @@ class Economy(commands.Cog):
         cx, cy, r = int(cx), int(cy), int(r)
 
         if suit == "♥":
-            cr = max(1, r * 55 // 100)
+            cr = max(1, r * 52 // 100)
             lx, ly = cx - r // 2, cy - r // 5
             rx, ry = cx + r // 2, cy - r // 5
             draw.ellipse([lx - cr, ly - cr, lx + cr, ly + cr], fill=color)
             draw.ellipse([rx - cr, ry - cr, rx + cr, ry + cr], fill=color)
-            draw.polygon([cx - r * 9 // 10, cy - r // 5,
-                          cx + r * 9 // 10, cy - r // 5,
+            draw.polygon([cx - r, cy - r // 5,
+                          cx + r, cy - r // 5,
                           cx, cy + r], fill=color)
 
         elif suit == "♦":
@@ -390,14 +496,14 @@ class Economy(commands.Cog):
 
         # Top-left: value text + small suit shape
         draw.text((x + 6, y + 5), value, fill=color, font=fnt_sm)
-        self._draw_suit_shape(draw, x + 6 + vw // 2, y + 5 + vh + 9, 7, suit, color)
+        self._draw_suit_shape(draw, x + 6 + vw // 2, y + 5 + vh + 14, 7, suit, color)
 
         # Centre: large suit shape
         self._draw_suit_shape(draw, x + w // 2, y + h // 2, 22, suit, color)
 
         # Bottom-right: value text + small suit shape (above it)
         draw.text((x + w - 6 - vw, y + h - 5 - vh), value, fill=color, font=fnt_sm)
-        self._draw_suit_shape(draw, x + w - 6 - vw // 2, y + h - 5 - vh - 9, 7, suit, color)
+        self._draw_suit_shape(draw, x + w - 6 - vw // 2, y + h - 5 - vh - 14, 7, suit, color)
 
     def _draw_card_back(self, draw, x, y, w, h):
         draw.rectangle([x + 5, y + 5, x + w + 5, y + h + 5], fill=(10, 70, 30))
@@ -543,7 +649,15 @@ class Economy(commands.Cog):
             bb = draw.textbbox((0, 0), "BAR", font=fnt)
             draw.text((cx-(bb[0]+bb[2])//2, cy-(bb[1]+bb[3])//2), "BAR", fill=(255, 242, 100), font=fnt)
 
-    def generate_slots_image(self, reel: list) -> discord.File:
+        else:
+            # Fallback for ❓ and unknown symbols
+            bb = draw.textbbox((0, 0), "?", font=fnt)
+            draw.text(
+                (cx - (bb[0] + bb[2]) // 2, cy - (bb[1] + bb[3]) // 2),
+                "?", fill=(160, 160, 180), font=fnt,
+            )
+
+    def generate_slots_image(self, reel: list, spinning: bool = False) -> discord.File:
         REEL_W, REEL_H = 130, 130
         REEL_GAP = 16
         PAD_X    = 32
@@ -554,7 +668,7 @@ class Economy(commands.Cog):
         W = 3 * REEL_W + 2 * REEL_GAP + 2 * PAD_X
         H = HDR_H + PAD_Y + REEL_H + PAD_Y + FTR_H
 
-        img  = Image.new("RGB", (W, H), color=(33, 33, 40))
+        img  = Image.new("RGBA", (W, H), color=(33, 33, 40, 255))
         draw = ImageDraw.Draw(img)
 
         fnt_hdr = self._load_font(22)
@@ -584,7 +698,21 @@ class Economy(commands.Cog):
         for i, symbol in enumerate(reel):
             rx = PAD_X + i * (REEL_W + REEL_GAP)
             draw.rectangle([rx, ry, rx+REEL_W, ry+REEL_H], fill=(20, 20, 26), outline=(145, 120, 35), width=3)
-            self._draw_slot_symbol_large(draw, rx + REEL_W//2, ry + REEL_H//2, symbol, fnt_sym)
+            if spinning:
+                # Speed lines to convey motion
+                for offset in range(12, REEL_H - 12, 18):
+                    alpha = 60 + (offset % 36) * 2
+                    draw.line(
+                        [rx + 8, ry + offset, rx + REEL_W - 8, ry + offset],
+                        fill=(alpha, alpha, alpha), width=2,
+                    )
+                # Ghost symbol faded in centre
+                self._draw_slot_symbol_large(draw, rx + REEL_W//2, ry + REEL_H//2, symbol, fnt_sym)
+                # Translucent dark overlay to show blur effect
+                overlay = Image.new("RGBA", (REEL_W - 6, REEL_H - 6), (10, 10, 16, 160))
+                img.paste(overlay, (rx + 3, ry + 3), overlay)
+            else:
+                self._draw_slot_symbol_large(draw, rx + REEL_W//2, ry + REEL_H//2, symbol, fnt_sym)
 
         # Centre payline marker (thin red lines on each side)
         win_y = ry + REEL_H // 2
@@ -592,7 +720,7 @@ class Economy(commands.Cog):
             draw.line([x1, win_y, x2, win_y], fill=(210, 45, 45), width=3)
 
         buf = io.BytesIO()
-        img.save(buf, format="PNG")
+        img.convert("RGB").save(buf, format="PNG")
         buf.seek(0)
         return discord.File(buf, filename="slots.png")
 
@@ -671,7 +799,7 @@ class Economy(commands.Cog):
         embed.add_field(name="Balance", value=f"**{self.format_money(updated)}**", inline=True)
         await interaction.response.send_message(embed=embed)
 
-    @money.command(name="coinflip", description="Flip a coin — double or nothing")
+    @app_commands.command(name="coinflip", description="Flip a coin — double or nothing")
     @app_commands.describe(amount="Amount to wager", guess="Heads or tails")
     @app_commands.choices(guess=COINFLIP_CHOICES)
     async def coinflip(self, interaction: discord.Interaction, amount: int, guess: app_commands.Choice[str]):
@@ -702,7 +830,7 @@ class Economy(commands.Cog):
         embed.set_image(url="attachment://coin.png")
         await interaction.response.send_message(embed=embed, file=coin_file)
 
-    @money.command(name="slots", description="Spin the slot machine")
+    @app_commands.command(name="slots", description="Spin the slot machine")
     @app_commands.describe(amount="Amount to wager")
     async def slots(self, interaction: discord.Interaction, amount: int):
         guild_id = str(interaction.guild.id)
@@ -715,39 +843,17 @@ class Economy(commands.Cog):
             await interaction.response.send_message("You don't have enough coins.", ephemeral=True)
             return
 
-        reel   = [random.choice(SLOT_SYMBOLS) for _ in range(3)]
-        unique = len(set(reel))
-
-        if unique == 1:
-            payout       = amount * 5
-            result_label = "🎉 **JACKPOT!** — Three of a kind!"
-            color        = JACKPOT_COLOR
-            title        = "🎰 Slots — Jackpot!"
-        elif unique == 2:
-            payout       = amount * 2
-            result_label = "✨ **Nice!** — Two of a kind"
-            color        = WIN_COLOR
-            title        = "🎰 Slots — Win!"
-        else:
-            payout       = -amount
-            result_label = "No match"
-            color        = LOSS_COLOR
-            title        = "🎰 Slots — Miss"
-
-        updated    = self.add_balance(guild_id, user_id, payout)
-        slots_file = self.generate_slots_image(reel)
-
-        embed = self.build_embed(title, color=color)
-        embed.add_field(name="Result",  value=result_label, inline=False)
-        if payout > 0:
-            embed.add_field(name="Winnings", value=f"+{self.format_money(payout)}", inline=True)
-        else:
-            embed.add_field(name="Lost",     value=f"−{self.format_money(abs(payout))}", inline=True)
-        embed.add_field(name="Balance", value=f"**{self.format_money(updated)}**", inline=True)
+        view = SlotsView(self, guild_id, user_id, amount)
+        idle_reel  = ["❓", "❓", "❓"]
+        slots_file = self.generate_slots_image(idle_reel)
+        embed = self.build_embed("🎰 Slot Machine", color=EMBED_COLOR)
+        embed.add_field(name="Bet",     value=self.format_money(amount), inline=True)
+        embed.add_field(name="Balance", value=f"**{self.format_money(balance)}**", inline=True)
         embed.set_image(url="attachment://slots.png")
-        await interaction.response.send_message(embed=embed, file=slots_file)
+        await interaction.response.send_message(embed=embed, file=slots_file, view=view)
+        view.message = await interaction.original_response()
 
-    @money.command(name="blackjack", description="Play an interactive round of blackjack")
+    @app_commands.command(name="blackjack", description="Play an interactive round of blackjack")
     @app_commands.describe(amount="Amount to wager")
     async def blackjack(self, interaction: discord.Interaction, amount: int):
         guild_id = str(interaction.guild.id)
@@ -788,7 +894,7 @@ class Economy(commands.Cog):
         await interaction.response.send_message(embed=embed, file=f, view=view)
         view.message = await interaction.original_response()
 
-    @money.command(name="lottery", description="Buy lottery tickets for a chance to win big")
+    @app_commands.command(name="lottery", description="Buy lottery tickets for a chance to win big")
     @app_commands.describe(tickets="Number of tickets (1–5)")
     async def lottery(self, interaction: discord.Interaction, tickets: int = 1):
         guild_id = str(interaction.guild.id)
