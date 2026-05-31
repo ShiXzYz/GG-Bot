@@ -339,7 +339,7 @@ class SlotsView(discord.ui.View):
 
 class Economy(commands.Cog):
 
-    money = app_commands.Group(name="money", description="Money economy commands")
+    money = app_commands.Group(name="money", description="Money economy commands", guild_only=True)
 
     def __init__(self, bot):
         self.bot = bot
@@ -775,6 +775,7 @@ class Economy(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="work", description="Work to earn (or lose) coins")
+    @app_commands.guild_only()
     async def work(self, interaction: discord.Interaction):
         guild_id = str(interaction.guild.id)
         user_id  = str(interaction.user.id)
@@ -800,6 +801,7 @@ class Economy(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="coinflip", description="Flip a coin — double or nothing")
+    @app_commands.guild_only()
     @app_commands.describe(amount="Amount to wager", guess="Heads or tails")
     @app_commands.choices(guess=COINFLIP_CHOICES)
     async def coinflip(self, interaction: discord.Interaction, amount: int, guess: app_commands.Choice[str]):
@@ -831,6 +833,7 @@ class Economy(commands.Cog):
         await interaction.response.send_message(embed=embed, file=coin_file)
 
     @app_commands.command(name="slots", description="Spin the slot machine")
+    @app_commands.guild_only()
     @app_commands.describe(amount="Amount to wager")
     async def slots(self, interaction: discord.Interaction, amount: int):
         guild_id = str(interaction.guild.id)
@@ -854,6 +857,7 @@ class Economy(commands.Cog):
         view.message = await interaction.original_response()
 
     @app_commands.command(name="blackjack", description="Play an interactive round of blackjack")
+    @app_commands.guild_only()
     @app_commands.describe(amount="Amount to wager")
     async def blackjack(self, interaction: discord.Interaction, amount: int):
         guild_id = str(interaction.guild.id)
@@ -895,6 +899,7 @@ class Economy(commands.Cog):
         view.message = await interaction.original_response()
 
     @app_commands.command(name="lottery", description="Buy lottery tickets for a chance to win big")
+    @app_commands.guild_only()
     @app_commands.describe(tickets="Number of tickets (1–5)")
     async def lottery(self, interaction: discord.Interaction, tickets: int = 1):
         guild_id = str(interaction.guild.id)

@@ -63,6 +63,10 @@ class Info(commands.Cog):
         name="rules",
         description="Displays the server rules"
     )
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.check(lambda i: i.guild is not None and (
+        i.user == i.guild.owner or i.user.guild_permissions.administrator
+    ))
     async def rules(self, interaction: discord.Interaction):
         embeds = self._build_rules_embeds()
         await interaction.channel.send(embeds=embeds)
@@ -178,6 +182,7 @@ class Info(commands.Cog):
         return [header, rules_embed]
 
     @commands.command(name="postrules")
+    @commands.has_permissions(administrator=True)
     async def rules_text(self, ctx: commands.Context):
         embeds = self._build_rules_embeds()
         await ctx.send(embeds=embeds)
