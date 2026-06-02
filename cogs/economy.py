@@ -61,6 +61,39 @@ COINFLIP_CHOICES = [
 SLOT_SYMBOLS = ["🍒", "🍋", "🍊", "🍇", "🔔", "⭐", "💎", "🎰"]
 LEADERBOARD_MEDALS = ["🥇", "🥈", "🥉"]
 
+ROULETTE_RED   = frozenset({1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36})
+ROULETTE_COLS  = (
+    frozenset({1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34}),
+    frozenset({2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35}),
+    frozenset({3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36}),
+)
+ROULETTE_WHEEL = [str(n) for n in range(37)] + ["00"]
+ROULETTE_BET_DISPLAY = {
+    "red":       "🔴 Red",
+    "black":     "⚫ Black",
+    "odd":       "Odd",
+    "even":      "Even",
+    "low":       "Low (1–18)",
+    "high":      "High (19–36)",
+    "1st":       "1st Dozen (1–12)",
+    "1st dozen": "1st Dozen (1–12)",
+    "2nd":       "2nd Dozen (13–24)",
+    "2nd dozen": "2nd Dozen (13–24)",
+    "3rd":       "3rd Dozen (25–36)",
+    "3rd dozen": "3rd Dozen (25–36)",
+    "col1":      "Column 1",
+    "col2":      "Column 2",
+    "col3":      "Column 3",
+}
+ROULETTE_MULTIPLIERS = {
+    "red": 1, "black": 1, "odd": 1, "even": 1, "low": 1, "high": 1,
+    "1st": 2, "1st dozen": 2, "2nd": 2, "2nd dozen": 2, "3rd": 2, "3rd dozen": 2,
+    "col1": 2, "col2": 2, "col3": 2,
+}
+ROULETTE_VALID_BETS = (
+    set(ROULETTE_MULTIPLIERS) | {str(n) for n in range(37)} | {"00"}
+)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Interactive Blackjack View
@@ -74,10 +107,43 @@ class BlackjackView(discord.ui.View):
         self.cog = cog
         self.guild_id = guild_id
         self.user_id = user_id
-        self.player_cards = list(player_cards)
         self.dealer_cards = list(dealer_cards)
         self.bet = bet
         self.message: discord.Message | None = None
+
+        self.hands: list[list[str]] = [list(player_cards)]
+        self.hand_bets: list[int] = [bet]
+        self.current: int = 0
+        self.split_occurred: bool = False
+        self.split_aces: bool = False
+
+        self._update_buttons()
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+
+    @property
+    def player_cards(self) -> list[str]:
+        return self.hands[self.current]
+
+    def _can_split(self) -> bool:
+        if self.split_occurred:
+            return False
+        hand = self.hands[self.current]
+        if len(hand) != 2:
+            return False
+        return self.cog.get_blackjack_value(hand[0]) == self.cog.get_blackjack_value(hand[1])
+
+    def _can_double(self) -> bool:
+        return len(self.hands[self.current]) == 2
+
+    def _update_buttons(self):
+        for item in self.children:
+            if not isinstance(item, discord.ui.Button):
+                continue
+            if item.custom_id == "bj_split":
+                item.disabled = not self._can_split()
+            elif item.custom_id == "bj_double":
+                item.disabled = not self._can_double()
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if str(interaction.user.id) != self.user_id:
@@ -97,135 +163,208 @@ class BlackjackView(discord.ui.View):
     # ── embed builders ────────────────────────────────────────────────────────
 
     def _active_embed(self) -> tuple[discord.Embed, discord.File]:
-        pt = self.cog.score_hand(self.player_cards)
         embed = discord.Embed(title="🃏 Blackjack", color=EMBED_COLOR)
         embed.add_field(
             name="🎩 Dealer",
             value=f"{self.dealer_cards[0]}  🂠  *(one card hidden)*",
             inline=False,
         )
-        embed.add_field(
-            name="🖐 Your Hand",
-            value=f"{'  '.join(self.player_cards)}\n**Score: {pt}**",
-            inline=False,
-        )
-        embed.add_field(name="Bet", value=self.cog.format_money(self.bet), inline=True)
+        for i, hand in enumerate(self.hands):
+            score = self.cog.score_hand(hand)
+            if len(self.hands) == 1:
+                label = "🖐 Your Hand"
+            elif i == self.current:
+                label = f"🖐 Hand {i + 1}  ◀ Playing"
+            else:
+                label = f"🖐 Hand {i + 1}  ✓ Done"
+            embed.add_field(
+                name=label,
+                value=f"{'  '.join(hand)}\n**Score: {score}**",
+                inline=False,
+            )
+        total_bet = sum(self.hand_bets)
+        embed.add_field(name="Bet", value=self.cog.format_money(total_bet), inline=True)
         f = self.cog.generate_blackjack_image(
-            self.player_cards, [self.dealer_cards[0]], show_back=True
+            self.hands, [self.dealer_cards[0]], show_back=True, active_hand=self.current
         )
         embed.set_image(url="attachment://blackjack.png")
         return embed, f
 
-    def _result_embed(self, outcome: str, payout: int, new_bal: int) -> tuple[discord.Embed, discord.File]:
-        pt = self.cog.score_hand(self.player_cards)
+    def _result_embed(self, hand_results: list, total_payout: int, new_bal: int) -> tuple[discord.Embed, discord.File]:
         dt = self.cog.score_hand(self.dealer_cards)
 
-        TITLES = {
+        OUTCOME_TITLES = {
             "blackjack": "🃏 Blackjack — Natural Blackjack! 🎉",
             "win":       "🃏 Blackjack — You Win!",
             "push":      "🃏 Blackjack — Push",
             "loss":      "🃏 Blackjack — You Lose",
             "bust":      "🃏 Blackjack — Bust!",
         }
-        COLORS = {
+        OUTCOME_COLORS = {
             "blackjack": JACKPOT_COLOR,
             "win":       WIN_COLOR,
             "push":      PUSH_COLOR,
             "loss":      LOSS_COLOR,
             "bust":      LOSS_COLOR,
         }
+        OUTCOME_EMOJI = {
+            "blackjack": "🎉 Blackjack!",
+            "win":       "✅ Win",
+            "push":      "➖ Push",
+            "loss":      "❌ Loss",
+            "bust":      "💥 Bust",
+        }
 
-        embed = discord.Embed(
-            title=TITLES.get(outcome, "🃏 Blackjack"),
-            color=COLORS.get(outcome, EMBED_COLOR),
-        )
+        if len(hand_results) == 1:
+            outcome = hand_results[0][1]
+            title = OUTCOME_TITLES.get(outcome, "🃏 Blackjack")
+            color = OUTCOME_COLORS.get(outcome, EMBED_COLOR)
+        else:
+            title = "🃏 Blackjack — Split Result"
+            color = WIN_COLOR if total_payout > 0 else (PUSH_COLOR if total_payout == 0 else LOSS_COLOR)
+
+        embed = discord.Embed(title=title, color=color)
         dealer_bust = "  💥" if dt > 21 else ""
-        player_bust = "  💥" if pt > 21 else ""
         embed.add_field(
             name="🎩 Dealer",
             value=f"{'  '.join(self.dealer_cards)}\n**Score: {dt}**{dealer_bust}",
             inline=False,
         )
-        embed.add_field(
-            name="🖐 Your Hand",
-            value=f"{'  '.join(self.player_cards)}\n**Score: {pt}**{player_bust}",
-            inline=False,
-        )
-        if payout > 0:
-            embed.add_field(name="Won",    value=f"+{self.cog.format_money(payout)}", inline=True)
-        elif payout < 0:
-            embed.add_field(name="Lost",   value=f"−{self.cog.format_money(abs(payout))}", inline=True)
+
+        for i, (hand, outcome, payout) in enumerate(hand_results):
+            pt = self.cog.score_hand(hand)
+            player_bust = "  💥" if pt > 21 else ""
+            label = f"🖐 Hand {i + 1}" if len(hand_results) > 1 else "🖐 Your Hand"
+            if payout > 0:
+                change = f"+{self.cog.format_money(payout)}"
+            elif payout < 0:
+                change = f"−{self.cog.format_money(abs(payout))}"
+            else:
+                change = "Push"
+            embed.add_field(
+                name=label,
+                value=f"{'  '.join(hand)}\n**Score: {pt}**{player_bust}\n{OUTCOME_EMOJI.get(outcome, outcome)} — {change}",
+                inline=False,
+            )
+
+        if total_payout > 0:
+            embed.add_field(name="Total Won",  value=f"+{self.cog.format_money(total_payout)}", inline=True)
+        elif total_payout < 0:
+            embed.add_field(name="Total Lost", value=f"−{self.cog.format_money(abs(total_payout))}", inline=True)
         else:
-            embed.add_field(name="Result", value="Bet returned",                      inline=True)
+            embed.add_field(name="Result", value="Break even", inline=True)
         embed.add_field(name="Balance", value=f"**{self.cog.format_money(new_bal)}**", inline=True)
 
-        f = self.cog.generate_blackjack_image(self.player_cards, self.dealer_cards)
+        f = self.cog.generate_blackjack_image(self.hands, self.dealer_cards)
         embed.set_image(url="attachment://blackjack.png")
         return embed, f
 
     # ── game logic ────────────────────────────────────────────────────────────
 
-    async def _finish(self, interaction: discord.Interaction):
-        pt = self.cog.score_hand(self.player_cards)
+    async def _next_hand_or_finish(self, interaction: discord.Interaction):
+        if self.current + 1 < len(self.hands):
+            self.current += 1
+            self._update_buttons()
+            embed, f = self._active_embed()
+            await interaction.response.edit_message(embed=embed, attachments=[f], view=self)
+        else:
+            await self._finish(interaction)
 
-        if pt <= 21:
+    async def _finish(self, interaction: discord.Interaction):
+        any_non_bust = any(self.cog.score_hand(h) <= 21 for h in self.hands)
+        if any_non_bust:
             while self.cog.score_hand(self.dealer_cards) < 17:
                 self.dealer_cards.append(self.cog.draw_card())
 
         dt = self.cog.score_hand(self.dealer_cards)
+        total_payout = 0
+        hand_results = []
 
-        if pt > 21:
-            outcome, payout = "bust",      -self.bet
-        elif dt > 21 or pt > dt:
-            if pt == 21 and len(self.player_cards) == 2:
-                outcome, payout = "blackjack", int(self.bet * 1.5)
+        for hand, hand_bet in zip(self.hands, self.hand_bets):
+            pt = self.cog.score_hand(hand)
+            if pt > 21:
+                outcome, payout = "bust", -hand_bet
+            elif dt > 21 or pt > dt:
+                if pt == 21 and len(hand) == 2 and not self.split_occurred:
+                    outcome, payout = "blackjack", int(hand_bet * 1.5)
+                else:
+                    outcome, payout = "win", hand_bet
+            elif pt == dt:
+                outcome, payout = "push", 0
             else:
-                outcome, payout = "win",       self.bet
-        elif pt == dt:
-            outcome, payout = "push",      0
-        else:
-            outcome, payout = "loss",      -self.bet
+                outcome, payout = "loss", -hand_bet
+            total_payout += payout
+            hand_results.append((hand, outcome, payout))
 
-        new_bal = self.cog.add_balance(self.guild_id, self.user_id, payout)
+        new_bal = self.cog.add_balance(self.guild_id, self.user_id, total_payout)
 
         for item in self.children:
             item.disabled = True
         self.stop()
 
-        embed, f = self._result_embed(outcome, payout, new_bal)
+        embed, f = self._result_embed(hand_results, total_payout, new_bal)
         await interaction.response.edit_message(embed=embed, attachments=[f], view=self)
 
     # ── buttons ───────────────────────────────────────────────────────────────
 
-    @discord.ui.button(label="Hit", style=discord.ButtonStyle.primary, emoji="🃏", row=0)
+    @discord.ui.button(label="Hit", custom_id="bj_hit", style=discord.ButtonStyle.primary, emoji="🃏", row=0)
     async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.player_cards.append(self.cog.draw_card())
-        # disable double-down after first action
+        self.hands[self.current].append(self.cog.draw_card())
         for item in self.children:
-            if isinstance(item, discord.ui.Button) and item.label == "Double Down":
+            if isinstance(item, discord.ui.Button) and item.custom_id in ("bj_double", "bj_split"):
                 item.disabled = True
 
         if self.cog.score_hand(self.player_cards) >= 21:
-            await self._finish(interaction)
+            await self._next_hand_or_finish(interaction)
         else:
             embed, f = self._active_embed()
             await interaction.response.edit_message(embed=embed, attachments=[f], view=self)
 
-    @discord.ui.button(label="Stand", style=discord.ButtonStyle.secondary, emoji="✋", row=0)
+    @discord.ui.button(label="Stand", custom_id="bj_stand", style=discord.ButtonStyle.secondary, emoji="✋", row=0)
     async def stand(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._finish(interaction)
+        await self._next_hand_or_finish(interaction)
 
-    @discord.ui.button(label="Double Down", style=discord.ButtonStyle.success, emoji="💰", row=0)
+    @discord.ui.button(label="Double Down", custom_id="bj_double", style=discord.ButtonStyle.success, emoji="💰", row=0)
     async def double_down(self, interaction: discord.Interaction, button: discord.ui.Button):
         balance = self.cog.get_balance(self.guild_id, self.user_id)
-        if balance < self.bet * 2:
+        extra = self.hand_bets[self.current]
+        if balance < sum(self.hand_bets) + extra:
             await interaction.response.send_message(
-                f"You need **{self.cog.format_money(self.bet * 2)}** to double down.", ephemeral=True
+                f"You need **{self.cog.format_money(extra)}** more to double down.", ephemeral=True
             )
             return
-        self.bet *= 2
-        self.player_cards.append(self.cog.draw_card())
-        await self._finish(interaction)
+        self.hand_bets[self.current] *= 2
+        self.hands[self.current].append(self.cog.draw_card())
+        await self._next_hand_or_finish(interaction)
+
+    @discord.ui.button(label="Split", custom_id="bj_split", style=discord.ButtonStyle.danger, emoji="✂️", row=0)
+    async def split(self, interaction: discord.Interaction, button: discord.ui.Button):
+        balance = self.cog.get_balance(self.guild_id, self.user_id)
+        split_bet = self.hand_bets[0]
+        if balance < split_bet * 2:
+            await interaction.response.send_message(
+                f"You need **{self.cog.format_money(split_bet * 2)}** total to split.", ephemeral=True
+            )
+            return
+
+        card1, card2 = self.hands[0][0], self.hands[0][1]
+        self.split_aces = card1.startswith("A")
+        self.split_occurred = True
+
+        self.hands = [
+            [card1, self.cog.draw_card()],
+            [card2, self.cog.draw_card()],
+        ]
+        self.hand_bets = [split_bet, split_bet]
+        self.current = 0
+
+        if self.split_aces:
+            # Casino rule: split aces get exactly one card each, no more actions
+            await self._finish(interaction)
+        else:
+            self._update_buttons()
+            embed, f = self._active_embed()
+            await interaction.response.edit_message(embed=embed, attachments=[f], view=self)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -334,6 +473,96 @@ class SlotsView(discord.ui.View):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Interactive Roulette View
+# ─────────────────────────────────────────────────────────────────────────────
+
+class RouletteView(discord.ui.View):
+
+    def __init__(self, cog: "Economy", guild_id: str, user_id: str, amount: int, bet: str):
+        super().__init__(timeout=60)
+        self.cog      = cog
+        self.guild_id = guild_id
+        self.user_id  = user_id
+        self.amount   = amount
+        self.bet      = bet
+        self.message: discord.Message | None = None
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != self.user_id:
+            await interaction.response.send_message("This isn't your game.", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
+
+    @discord.ui.button(label="Spin!", style=discord.ButtonStyle.danger, emoji="🎡")
+    async def spin(self, interaction: discord.Interaction, button: discord.ui.Button):
+        button.disabled = True
+        button.label    = "Spinning…"
+        await interaction.response.defer()
+
+        # Pre-determine result before animation starts
+        winning      = self.cog._roulette_spin()
+        color        = self.cog._roulette_color(winning)
+        won, multi   = self.cog._roulette_resolve(self.bet, winning)
+
+        # Spinning embed header (reused for every animation frame)
+        spin_embed = discord.Embed(title="🎡 Roulette — Spinning…", color=EMBED_COLOR)
+        spin_embed.add_field(name="🎲 Your Bet", value=self.cog._bet_display(self.bet), inline=True)
+        spin_embed.add_field(name="💰 Wager",    value=self.cog.format_money(self.amount), inline=True)
+        spin_embed.set_image(url="attachment://roulette.png")
+
+        # Frames: start fast, slow down as the ball settles
+        # Each tuple is (displayed_number, delay_after_frame_in_seconds)
+        frame_delays = [0.20, 0.20, 0.25, 0.30, 0.40, 0.52, 0.65, 0.80]
+        frames = [random.choice(ROULETTE_WHEEL) for _ in frame_delays]
+
+        for num, delay in zip(frames, frame_delays):
+            num_color = self.cog._roulette_color(num)
+            f = self.cog.generate_roulette_image(num, num_color, spinning=True)
+            await interaction.edit_original_response(embed=spin_embed, attachments=[f], view=self)
+            await asyncio.sleep(delay)
+
+        # Final frame — show result and update balance
+        net     = self.amount * multi if won else -self.amount
+        new_bal = self.cog.add_balance(self.guild_id, self.user_id, net)
+
+        pocket_emoji = {"red": "🔴", "black": "⚫", "green": "🟢"}[color]
+        bet_display  = self.cog._bet_display(self.bet)
+
+        if won:
+            title        = "🎡 Roulette — Winner! 🎉" if multi < 35 else "🎡 Roulette — Jackpot! 🎰"
+            result_color = JACKPOT_COLOR if multi == 35 else WIN_COLOR
+        else:
+            title        = "🎡 Roulette — No Luck"
+            result_color = LOSS_COLOR
+
+        embed = discord.Embed(title=title, color=result_color)
+        embed.add_field(name="🎯 Result",   value=f"{pocket_emoji} **{winning}** — {color.title()}", inline=True)
+        embed.add_field(name="🎲 Your Bet", value=bet_display, inline=True)
+        if won:
+            embed.add_field(name="Payout", value=f"{multi}:1", inline=True)
+            embed.add_field(name="Won",    value=f"+{self.cog.format_money(net)}", inline=True)
+        else:
+            embed.add_field(name="Lost",   value=f"−{self.cog.format_money(self.amount)}", inline=True)
+        embed.add_field(name="Balance", value=f"**{self.cog.format_money(new_bal)}**", inline=True)
+
+        f = self.cog.generate_roulette_image(winning, color, spinning=False)
+        embed.set_image(url="attachment://roulette.png")
+
+        self.clear_items()
+        await interaction.edit_original_response(embed=embed, attachments=[f], view=self)
+        self.stop()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Economy Cog
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -345,6 +574,7 @@ class Economy(commands.Cog):
         self.bot = bot
         self.data = load_data()
         self.work_cooldowns = {}
+        self._shoe: list[str] = []
 
     def cog_unload(self):
         save_data(self.data)
@@ -379,10 +609,17 @@ class Economy(commands.Cog):
 
     # ── card logic ────────────────────────────────────────────────────────────
 
-    def draw_card(self) -> str:
+    def _make_shoe(self, num_decks: int = 6) -> list[str]:
         values = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
         suits  = ["♠️", "♥️", "♦️", "♣️"]
-        return f"{random.choice(values)}{random.choice(suits)}"
+        shoe   = [f"{v}{s}" for v in values for s in suits] * num_decks
+        random.shuffle(shoe)
+        return shoe
+
+    def draw_card(self) -> str:
+        if len(self._shoe) < 52:
+            self._shoe = self._make_shoe()
+        return self._shoe.pop()
 
     def get_blackjack_value(self, card: str) -> int:
         value = card[:-2]
@@ -515,18 +752,22 @@ class Economy(commands.Cog):
             draw.line([x1, y1, x2, y2], fill=(35, 65, 175), width=1)
         draw.rectangle([x + 8, y + 8, x + w - 8, y + h - 8], outline=(80, 120, 220), width=1)
 
-    def generate_blackjack_image(self, player_cards: list, dealer_cards: list, show_back: bool = False) -> discord.File:
+    def generate_blackjack_image(self, player_hands: list[list[str]], dealer_cards: list,
+                                  show_back: bool = False, active_hand: int = 0) -> discord.File:
         CW, CH   = 90, 130
         GAP      = 14
         PAD      = 24
         LABEL_H  = 30
         ROW_GAP  = 20
+        ROW_H    = LABEL_H + CH
 
-        max_dealer = len(dealer_cards) + (1 if show_back else 0)
-        max_cols   = max(len(player_cards), max_dealer)
+        max_dealer  = len(dealer_cards) + (1 if show_back else 0)
+        max_player  = max(len(h) for h in player_hands)
+        max_cols    = max(max_player, max_dealer)
+        num_rows    = 1 + len(player_hands)
 
         img_w = PAD * 2 + max_cols * (CW + GAP) - GAP
-        img_h = PAD + LABEL_H + CH + ROW_GAP + LABEL_H + CH + PAD
+        img_h = 2 * PAD + num_rows * ROW_H + (num_rows - 1) * ROW_GAP
 
         img  = Image.new("RGB", (img_w, img_h), color=(21, 95, 47))
         draw = ImageDraw.Draw(img)
@@ -544,8 +785,17 @@ class Economy(commands.Cog):
                 bx = PAD + len(cards) * (CW + GAP)
                 self._draw_card_back(draw, bx, sy + LABEL_H, CW, CH)
 
-        draw_row(dealer_cards, PAD,                              "  DEALER", add_back=show_back)
-        draw_row(player_cards, PAD + LABEL_H + CH + ROW_GAP,   "  YOU")
+        draw_row(dealer_cards, PAD, "  DEALER", add_back=show_back)
+
+        for i, hand in enumerate(player_hands):
+            sy = PAD + (i + 1) * (ROW_H + ROW_GAP)
+            if len(player_hands) == 1:
+                label = "  YOU"
+            elif i == active_hand and show_back:
+                label = f"  HAND {i + 1}  ◀"
+            else:
+                label = f"  HAND {i + 1}"
+            draw_row(hand, sy, label)
 
         buf = io.BytesIO()
         img.save(buf, format="PNG")
@@ -724,6 +974,131 @@ class Economy(commands.Cog):
         buf.seek(0)
         return discord.File(buf, filename="slots.png")
 
+    # ── roulette helpers ──────────────────────────────────────────────────────
+
+    def _roulette_spin(self) -> str:
+        return random.choice(ROULETTE_WHEEL)
+
+    def _roulette_color(self, number: str) -> str:
+        if number in ("0", "00"):
+            return "green"
+        return "red" if int(number) in ROULETTE_RED else "black"
+
+    def _roulette_resolve(self, bet: str, winning: str) -> tuple[bool, int]:
+        if bet in {str(n) for n in range(37)} | {"00"}:
+            return bet == winning, 35
+        if winning in ("0", "00"):
+            return False, 0
+        n = int(winning)
+        if bet == "red":
+            return n in ROULETTE_RED, 1
+        if bet == "black":
+            return n not in ROULETTE_RED, 1
+        if bet == "odd":
+            return n % 2 == 1, 1
+        if bet == "even":
+            return n % 2 == 0, 1
+        if bet == "low":
+            return 1 <= n <= 18, 1
+        if bet == "high":
+            return 19 <= n <= 36, 1
+        if bet in ("1st", "1st dozen"):
+            return 1 <= n <= 12, 2
+        if bet in ("2nd", "2nd dozen"):
+            return 13 <= n <= 24, 2
+        if bet in ("3rd", "3rd dozen"):
+            return 25 <= n <= 36, 2
+        if bet == "col1":
+            return n in ROULETTE_COLS[0], 2
+        if bet == "col2":
+            return n in ROULETTE_COLS[1], 2
+        if bet == "col3":
+            return n in ROULETTE_COLS[2], 2
+        return False, 0
+
+    def _bet_display(self, bet: str) -> str:
+        if bet in ROULETTE_BET_DISPLAY:
+            return ROULETTE_BET_DISPLAY[bet]
+        if bet == "0":
+            return "Straight Up — 0 🟢"
+        if bet == "00":
+            return "Straight Up — 00 🟢"
+        if bet.isdigit():
+            hint = "🔴" if int(bet) in ROULETTE_RED else "⚫"
+            return f"Straight Up — {bet} {hint}"
+        return bet.title()
+
+    def generate_roulette_image(self, winning_number: str, pocket_color: str,
+                                  spinning: bool = False) -> discord.File:
+        W, H = 480, 300
+        img  = Image.new("RGB", (W, H), color=(18, 55, 25))
+        draw = ImageDraw.Draw(img)
+
+        # Gold double border
+        draw.rectangle([3,  3,  W-4, H-4], outline=(195, 155, 25), width=3)
+        draw.rectangle([8,  8,  W-9, H-9], outline=(130, 100, 15), width=1)
+
+        POCKET_FILL = {"red": (180, 25, 25), "black": (20, 20, 20),  "green": (14, 110, 45)}
+        POCKET_RING = {"red": (220, 60, 60), "black": (75,  75, 75), "green": (25, 170, 75)}
+        fill_c = POCKET_FILL[pocket_color]
+        ring_c = POCKET_RING[pocket_color]
+
+        cx, cy, r = W // 2, H // 2, 105
+
+        # Alternating red/black/green dots around the wheel rim
+        num_segments = 38
+        for i in range(num_segments):
+            angle = 2 * math.pi * i / num_segments - math.pi / 2
+            dx = int((r + 18) * math.cos(angle))
+            dy = int((r + 18) * math.sin(angle))
+            if i == 0 or i == 19:
+                dot_color = (14, 130, 50)
+            elif i % 2 == 0:
+                dot_color = (180, 25, 25)
+            else:
+                dot_color = (25, 25, 25)
+            draw.ellipse([cx+dx-5, cy+dy-5, cx+dx+5, cy+dy+5], fill=dot_color)
+
+        # Radial speed lines when spinning — 12 golden streaks radiating outward
+        if spinning:
+            for k in range(12):
+                angle = 2 * math.pi * k / 12
+                x1 = cx + int((r + 22) * math.cos(angle))
+                y1 = cy + int((r + 22) * math.sin(angle))
+                x2 = cx + int((r + 44) * math.cos(angle))
+                y2 = cy + int((r + 44) * math.sin(angle))
+                draw.line([x1, y1, x2, y2], fill=(190, 155, 20), width=3)
+
+        # Gold outer ring
+        draw.ellipse([cx-r-7, cy-r-7, cx+r+7, cy+r+7], outline=(200, 165, 25), width=6)
+        # Pocket fill
+        draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=fill_c)
+        # Inner highlight ring
+        draw.ellipse([cx-r+9, cy-r+9, cx+r-9, cy+r-9], outline=ring_c, width=3)
+
+        # Number — dimmed while spinning, bright when stopped
+        num_fill = (170, 170, 170) if spinning else (255, 255, 255)
+        fnt_sz   = 56 if winning_number == "00" else 74
+        fnt_num  = self._load_font(fnt_sz)
+        fnt_lbl  = self._load_font(22)
+
+        bb = draw.textbbox((0, 0), winning_number, font=fnt_num)
+        tw, th = bb[2] - bb[0], bb[3] - bb[1]
+        draw.text((cx - tw // 2 - bb[0], cy - th // 2 - bb[1]),
+                  winning_number, fill=num_fill, font=fnt_num)
+
+        # Color label below pocket (hidden while spinning)
+        if not spinning:
+            label = pocket_color.upper()
+            bb2   = draw.textbbox((0, 0), label, font=fnt_lbl)
+            lw    = bb2[2] - bb2[0]
+            draw.text((cx - lw // 2, cy + r + 14), label, fill=(210, 185, 75), font=fnt_lbl)
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return discord.File(buf, filename="roulette.png")
+
     # ── commands ──────────────────────────────────────────────────────────────
 
     @money.command(name="balance", description="Check your coins or another member's")
@@ -877,10 +1252,8 @@ class Economy(commands.Cog):
 
         # Check immediate natural blackjack
         if self.score_hand(player_cards) == 21:
-            # Auto-finish — dealer draws out
             while self.score_hand(dealer_cards) < 17:
                 dealer_cards.append(self.draw_card())
-            view.player_cards = player_cards
             view.dealer_cards = dealer_cards
             dt = self.score_hand(dealer_cards)
             if dt == 21 and len(dealer_cards) == 2:
@@ -890,13 +1263,82 @@ class Economy(commands.Cog):
             new_bal = self.add_balance(guild_id, user_id, payout)
             for item in view.children:
                 item.disabled = True
-            embed, f = view._result_embed(outcome, payout, new_bal)
+            hand_results = [(player_cards, outcome, payout)]
+            embed, f = view._result_embed(hand_results, payout, new_bal)
             await interaction.response.send_message(embed=embed, file=f)
             return
 
         embed, f = view._active_embed()
         await interaction.response.send_message(embed=embed, file=f, view=view)
         view.message = await interaction.original_response()
+
+    @app_commands.command(name="roulette", description="Bet on the roulette wheel — American style (0, 00, 1–36)")
+    @app_commands.guild_only()
+    @app_commands.describe(
+        amount="Amount to bet",
+        bet="red/black, odd/even, low/high, 1st/2nd/3rd, col1/col2/col3, or a number 0–36 / 00",
+    )
+    async def roulette(self, interaction: discord.Interaction, amount: int, bet: str):
+        guild_id = str(interaction.guild.id)
+        user_id  = str(interaction.user.id)
+        balance  = self.get_balance(guild_id, user_id)
+
+        if amount <= 0:
+            await interaction.response.send_message("Bet must be greater than zero.", ephemeral=True)
+            return
+        if amount > balance:
+            await interaction.response.send_message("You don't have enough coins.", ephemeral=True)
+            return
+
+        bet_norm = bet.strip().lower()
+        if bet_norm not in ROULETTE_VALID_BETS:
+            await interaction.response.send_message(
+                "Invalid bet. Use: `red`, `black`, `odd`, `even`, `low`, `high`, "
+                "`1st`, `2nd`, `3rd`, `col1`, `col2`, `col3`, or a number `0`–`36` / `00`.",
+                ephemeral=True,
+            )
+            return
+
+        odds    = ROULETTE_MULTIPLIERS.get(bet_norm, 35)
+        bet_str = self._bet_display(bet_norm)
+
+        embed = discord.Embed(title="🎡 Roulette", color=EMBED_COLOR)
+        embed.add_field(name="🎲 Your Bet", value=bet_str,                    inline=True)
+        embed.add_field(name="💰 Wager",    value=self.format_money(amount),  inline=True)
+        embed.add_field(name="📈 Payout",   value=f"{odds}:1",               inline=True)
+        embed.add_field(name="Balance",     value=f"**{self.format_money(balance)}**", inline=True)
+        embed.set_footer(text="American Roulette — 0 and 00 are house pockets")
+
+        view = RouletteView(self, guild_id, user_id, amount, bet_norm)
+        await interaction.response.send_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
+
+    @roulette.autocomplete("bet")
+    async def roulette_bet_autocomplete(self, interaction: discord.Interaction, current: str):
+        options = [
+            ("🔴 Red (1:1)",            "red"),
+            ("⚫ Black (1:1)",           "black"),
+            ("Odd (1:1)",               "odd"),
+            ("Even (1:1)",              "even"),
+            ("⬇️ Low 1–18 (1:1)",       "low"),
+            ("⬆️ High 19–36 (1:1)",     "high"),
+            ("1st Dozen 1–12 (2:1)",    "1st"),
+            ("2nd Dozen 13–24 (2:1)",   "2nd"),
+            ("3rd Dozen 25–36 (2:1)",   "3rd"),
+            ("Column 1 (2:1)",          "col1"),
+            ("Column 2 (2:1)",          "col2"),
+            ("Column 3 (2:1)",          "col3"),
+            ("0 — Green (35:1)",        "0"),
+            ("00 — Green (35:1)",       "00"),
+        ] + [(f"{n} — Straight Up (35:1)", str(n)) for n in range(1, 37)]
+
+        cur = current.lower().strip()
+        filtered = [
+            app_commands.Choice(name=name, value=value)
+            for name, value in options
+            if cur in value or cur in name.lower()
+        ]
+        return filtered[:25]
 
     @app_commands.command(name="lottery", description="Buy lottery tickets for a chance to win big")
     @app_commands.guild_only()
