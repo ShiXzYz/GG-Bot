@@ -30,10 +30,13 @@ class Status(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.meta = load_status_meta()
+        self.last_player_counts = {}  # port -> player count (-1 = offline)
         self.refresh_status.start()
+        self.check_player_change.start()
 
     def cog_unload(self):
         self.refresh_status.cancel()
+        self.check_player_change.cancel()
 
     # admin/owner permission check
     def admin_or_owner_check():
@@ -109,16 +112,13 @@ class Status(commands.Cog):
         embed.set_footer(text="LIVE TELEMETRY")
         return embed
 
-    # Auto-refresh every 30 minutes
-    @tasks.loop(minutes=30)
-    async def refresh_status(self):
-        await self.bot.wait_until_ready()
+    async def _push_update(self):
+        """Edit all registered status messages with fresh embeds."""
         for gid, meta in list(self.meta.items()):
             guild = self.bot.get_guild(int(gid))
             if not guild:
                 continue
 
-            # meta values may be strings when loaded from older DBs
             channel_id = meta.get("channel_id")
             try:
                 channel_id = int(channel_id)
@@ -143,6 +143,36 @@ class Status(commands.Cog):
             except (discord.NotFound, discord.Forbidden):
                 self.meta.pop(gid, None)
                 save_status_meta(self.meta)
+
+    # Detect player-count changes and update immediately
+    @tasks.loop(seconds=60)
+    async def check_player_change(self):
+        await self.bot.wait_until_ready()
+        changed = False
+        for srv in SERVERS:
+            port = srv["port"]
+            try:
+                if not is_port_open(port):
+                    new_count = -1
+                else:
+                    server = JavaServer.lookup(f"127.0.0.1:{port}")
+                    status = await asyncio.to_thread(server.status)
+                    new_count = status.players.online
+            except Exception:
+                new_count = -1
+
+            if self.last_player_counts.get(port) != new_count:
+                self.last_player_counts[port] = new_count
+                changed = True
+
+        if changed:
+            await self._push_update()
+
+    # Auto-refresh every 30 minutes as a fallback
+    @tasks.loop(minutes=30)
+    async def refresh_status(self):
+        await self.bot.wait_until_ready()
+        await self._push_update()
 
     # Command to post status dashboard
     @app_commands.command(name="servers", description="Show server status dashboard")
